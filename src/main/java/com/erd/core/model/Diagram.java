@@ -10,7 +10,6 @@ import java.util.UUID;
 public class Diagram {
 
     @Id
-    @UuidGenerator
     private UUID id;
 
     private String nodeData;
@@ -19,7 +18,12 @@ public class Diagram {
 
     private String projectId;
 
+    public Diagram() {
+        this.id = UUID.randomUUID();
+    }
+
     public Diagram(String nodeData, String linkData, String projectId) {
+        this.id = UUID.randomUUID();
         this.nodeData = nodeData;
         this.linkData = linkData;
         this.projectId = projectId;

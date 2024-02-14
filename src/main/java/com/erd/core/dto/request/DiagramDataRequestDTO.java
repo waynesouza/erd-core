@@ -3,10 +3,11 @@ package com.erd.core.dto.request;
 import com.erd.core.dto.LinkDataDTO;
 import com.erd.core.dto.NodeDataDTO;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.UUID;
 
-public class DiagramDataRequestDTO {
+public class DiagramDataRequestDTO implements Serializable {
 
     private UUID projectId;
 

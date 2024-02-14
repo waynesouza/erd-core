@@ -7,4 +7,4 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://localhost:27017/local
+      uri: mongodb://root:root@localhost:27017/local?authSource=admin

@@ -28,8 +28,8 @@ public class WebSocketService {
             logger.info("Saving diagram data");
             Diagram diagram = diagramRepository.save(diagramMapper.toEntity(diagramDataRequestDto));
             return diagramMapper.toResponseDto(diagram);
-        } catch (JsonProcessingException e) {
-            logger.error("Error processing JSON", e);
+        } catch (Exception e) {
+            logger.error("Error saving diagram data", e);
             return null;
         }
     }

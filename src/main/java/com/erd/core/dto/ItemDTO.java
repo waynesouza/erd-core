@@ -1,8 +1,13 @@
 package com.erd.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class ItemDTO {
 
+    @JsonProperty
     private String name;
+
+    @JsonProperty
     private String type;
 
     public String getName() {

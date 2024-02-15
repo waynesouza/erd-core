@@ -32,7 +32,8 @@ public class DiagramMapper {
     public Diagram toEntity(DiagramDataRequestDTO diagramDataRequestDto) {
         String nodeData = convertToSting(diagramDataRequestDto.getNodeDataArray());
         String linkData = convertToSting(diagramDataRequestDto.getLinkDataArray());
-        return new Diagram(nodeData, linkData, null);
+        String projectId = diagramDataRequestDto.getProjectId().toString();
+        return new Diagram(nodeData, linkData, projectId);
     }
 
     public DiagramDataResponseDTO toResponseDto(Diagram diagram) {

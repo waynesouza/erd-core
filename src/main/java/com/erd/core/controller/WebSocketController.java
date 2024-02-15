@@ -1,5 +1,7 @@
 package com.erd.core.controller;
 
+import com.erd.core.dto.LinkDataDTO;
+import com.erd.core.dto.NodeDataDTO;
 import com.erd.core.dto.request.DiagramDataRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.service.WebSocketService;
@@ -8,8 +10,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
 
-@Controller
+import java.util.Arrays;
+
+@RestController
 public class WebSocketController {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketController.class);
@@ -27,6 +34,11 @@ public class WebSocketController {
         logger.info("Received message: {}", diagramDataRequestDto);
         DiagramDataResponseDTO savedDto = webSocketService.save(diagramDataRequestDto);
         messagingTemplate.convertAndSend("/topic/receive", savedDto);
+    }
+
+    @GetMapping("/diagram/{projectId}")
+    public DiagramDataResponseDTO getDiagramByProjectId(@PathVariable String projectId) {
+        return webSocketService.getDiagramByProjectId(projectId);
     }
 
 }

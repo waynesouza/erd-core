@@ -9,7 +9,10 @@ import java.util.List;
 
 public class DiagramDataResponseDTO implements Serializable {
 
+    @JsonProperty
     private List<NodeDataDTO> nodeDataArray;
+
+    @JsonProperty
     private List<LinkDataDTO> linkDataArray;
 
     public DiagramDataResponseDTO() { }

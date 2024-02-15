@@ -12,4 +12,9 @@ public class NodeDataDTO {
     @JsonProperty
     private List<ItemDTO> items;
 
+    @JsonProperty
+    private LocationDTO location;
+
+
+
 }

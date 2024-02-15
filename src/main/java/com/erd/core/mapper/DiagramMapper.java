@@ -13,7 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Component
 public class DiagramMapper {
@@ -34,8 +36,8 @@ public class DiagramMapper {
     }
 
     public DiagramDataResponseDTO toResponseDto(Diagram diagram) {
-        List<NodeDataDTO> nodeDataArray = convertJsonToList(diagram.getNodeData(), new TypeReference<>() {});
-        List<LinkDataDTO> linkDataArray = convertJsonToList(diagram.getLinkData(), new TypeReference<>() {});
+        List<NodeDataDTO> nodeDataArray = Objects.requireNonNullElse(convertJsonToList(diagram.getNodeData(), new TypeReference<>() {}), new ArrayList<>());
+        List<LinkDataDTO> linkDataArray = Objects.requireNonNullElse(convertJsonToList(diagram.getLinkData(), new TypeReference<>() {}), new ArrayList<>());
         return new DiagramDataResponseDTO(nodeDataArray, linkDataArray);
     }
 

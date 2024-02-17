@@ -42,7 +42,7 @@ public class DiagramMapper {
         return new DiagramDataResponseDTO(nodeDataArray, linkDataArray);
     }
 
-    private String convertToSting(Object object) {
+    public String convertToSting(Object object) {
         try {
             return objectMapper.writeValueAsString(object);
         } catch (JsonProcessingException e) {

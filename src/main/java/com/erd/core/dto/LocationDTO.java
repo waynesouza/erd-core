@@ -2,14 +2,12 @@ package com.erd.core.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.math.BigDecimal;
-
 public class LocationDTO {
 
     @JsonProperty
-    private BigDecimal x;
+    private String x;
 
     @JsonProperty
-    private BigDecimal y;
+    private String y;
 
 }

@@ -52,8 +52,8 @@ public class UserController {
         return "Welcome to Admin Profile";
     }
 
-    @PostMapping("/generateToken")
-    public String authenticateAndGetToken(@RequestBody AuthenticationRequestDTO authRequestDto) {
+    @PostMapping("/login")
+    public String login(@RequestBody AuthenticationRequestDTO authRequestDto) {
         Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(authRequestDto.getEmail(), authRequestDto.getPassword()));
         if (authentication.isAuthenticated()) {
             return jwtService.generateToken(authRequestDto.getEmail());

@@ -1,36 +1,29 @@
 package com.erd.core.controller;
 
 import com.erd.core.dto.request.AuthenticationRequestDTO;
-import com.erd.core.service.JwtService;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import com.erd.core.dto.response.AuthenticationResponseDTO;
+import com.erd.core.service.AuthenticationService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+
 @RestController
 @RequestMapping("/auth")
 public class AuthenticationController {
 
-    private final JwtService jwtService;
-    private final AuthenticationManager authenticationManager;
+    private final AuthenticationService authenticationService;
 
-    public AuthenticationController(JwtService jwtService, AuthenticationManager authenticationManager) {
-        this.jwtService = jwtService;
-        this.authenticationManager = authenticationManager;
+    public AuthenticationController(AuthenticationService authenticationService) {
+        this.authenticationService = authenticationService;
     }
 
-    @PostMapping("/login")
-    public String login(@RequestBody AuthenticationRequestDTO authRequestDto) {
-        Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(authRequestDto.getEmail(), authRequestDto.getPassword()));
-        if (authentication.isAuthenticated()) {
-            return jwtService.generateToken(authRequestDto.getEmail());
-        } else {
-            throw new UsernameNotFoundException("User not found");
-        }
+    @PostMapping(value = "/login", consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity<AuthenticationResponseDTO> authenticate(@RequestBody AuthenticationRequestDTO authRequestDto) {
+        return ResponseEntity.ok(authenticationService.authenticate(authRequestDto));
     }
 
 }

@@ -1,4 +1,4 @@
-package com.erd.core.model;
+package com.erd.core.model.mongo;
 
 import org.hibernate.annotations.UuidGenerator;
 import org.springframework.data.annotation.Id;

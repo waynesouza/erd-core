@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 import org.springframework.security.core.GrantedAuthority;
@@ -33,6 +34,9 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     private RoleEnum role;
+
+    @OneToMany(mappedBy = "user")
+    private List<Team> teams;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -112,4 +116,13 @@ public class User implements UserDetails {
     public void setRole(RoleEnum role) {
         this.role = role;
     }
+
+    public List<Team> getTeams() {
+        return teams;
+    }
+
+    public void setTeams(List<Team> teams) {
+        this.teams = teams;
+    }
+
 }

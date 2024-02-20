@@ -1,6 +1,6 @@
 package com.erd.core.repository.mongo;
 
-import com.erd.core.model.Diagram;
+import com.erd.core.model.mongo.Diagram;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.Optional;

@@ -3,7 +3,7 @@ package com.erd.core.service;
 import com.erd.core.dto.request.DiagramDataRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.mapper.DiagramMapper;
-import com.erd.core.model.Diagram;
+import com.erd.core.model.mongo.Diagram;
 import com.erd.core.repository.mongo.DiagramRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

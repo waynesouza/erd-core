@@ -4,7 +4,7 @@ import com.erd.core.dto.LinkDataDTO;
 import com.erd.core.dto.NodeDataDTO;
 import com.erd.core.dto.request.DiagramDataRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
-import com.erd.core.model.Diagram;
+import com.erd.core.model.mongo.Diagram;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,11 +22,9 @@ public class DiagramMapper {
 
     private static final Logger logger = LoggerFactory.getLogger(DiagramMapper.class);
 
-    private final ModelMapper modelMapper;
     private final ObjectMapper objectMapper;
 
-    public DiagramMapper(ModelMapper modelMapper, ObjectMapper objectMapper) {
-        this.modelMapper = modelMapper;
+    public DiagramMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
     public Diagram toEntity(DiagramDataRequestDTO diagramDataRequestDto) {

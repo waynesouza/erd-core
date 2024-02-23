@@ -38,6 +38,16 @@ public class User implements UserDetails {
     @OneToMany(mappedBy = "user")
     private List<Team> teams;
 
+    public User() { }
+
+    public User(String firstName, String lastName, String email, String password, RoleEnum role) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.password = password;
+        this.role = role;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(role.name()));

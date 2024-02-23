@@ -20,7 +20,7 @@ public class WebConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/send")
+        registry.addEndpoint("api/send")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
     }

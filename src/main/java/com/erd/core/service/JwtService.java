@@ -1,68 +1,80 @@
 package com.erd.core.service;
 
-import io.jsonwebtoken.Claims;
+import com.erd.core.model.User;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.security.core.userdetails.UserDetails;
+import jakarta.servlet.http.HttpServletRequest;
+import org.apache.logging.log4j.util.Strings;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.WebUtils;
 
 import java.security.Key;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
+import java.util.Objects;
 
 @Service
 public class JwtService {
 
-    public static final String SECRET = "5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437";
+    private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
 
-    public String generateToken(String email) {
-        Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, email);
+    @Value("${erd.app.jwt.secret}")
+    private String secret;
+
+    @Value("${erd.app.jwt.expiration}")
+    private Integer expiration;
+
+    @Value("${erd.app.jwt.cookie-name}")
+    private String cookieName;
+
+    public String getTokenFromCookie(HttpServletRequest request) {
+        var cookie = WebUtils.getCookie(request, cookieName);
+        return Objects.nonNull(cookie) ? cookie.getValue() : null;
     }
 
-    public String extractUserName(String token) {
-        return extractClaim(token, Claims::getSubject);
+    public ResponseCookie generateTokenCookie(User user) {
+        var token = createToken(user.getEmail());
+        return ResponseCookie.from(cookieName, token).httpOnly(true).maxAge(24 * 60 * 60).path("/api")
+                .build();
     }
 
-    public Boolean isTokenValid(String token, UserDetails userDetails) {
-        final String userName = extractUserName(token);
-        return (userName.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    public ResponseCookie deleteTokenCookie() {
+        return ResponseCookie.from(cookieName, Strings.EMPTY).path("/api").build();
     }
 
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolvers) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolvers.apply(claims);
+    public String getEmailFromToken(String token) {
+        return Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token).getBody().getSubject();
     }
 
-    private String createToken(Map<String, Object> extraClaims, String email) {
+    public Boolean isTokenValid(String token) {
+        try {
+            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parse(token);
+            return Boolean.TRUE;
+        } catch (MalformedJwtException | ExpiredJwtException | UnsupportedJwtException | IllegalArgumentException e) {
+            logger.error("{} token: {}", e instanceof IllegalArgumentException ? "Empty" : e.getMessage().split(" ")[0], e.getMessage());
+            return Boolean.FALSE;
+        }
+    }
+
+    private String createToken(String email) {
         return Jwts.builder()
-                .setClaims(extraClaims)
                 .setSubject(email)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 24))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256).compact();
-    }
-
-    private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token)
-                .getBody();
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
     }
 
     private Key getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(SECRET);
-        return Keys.hmacShaKeyFor(keyBytes);
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
 }

@@ -30,24 +30,40 @@ public class JwtService {
     private String secret;
 
     @Value("${erd.app.jwt.expiration}")
-    private Integer expiration;
+    private Long expiration;
+
+    @Value("${erd.app.jwt.refresh-expiration}")
+    private Long refreshExpiration;
 
     @Value("${erd.app.jwt.cookie-name}")
     private String cookieName;
 
-    public String getTokenFromCookie(HttpServletRequest request) {
-        var cookie = WebUtils.getCookie(request, cookieName);
-        return Objects.nonNull(cookie) ? cookie.getValue() : null;
-    }
+    @Value("${erd.app.jwt.refresh-cookie-name}")
+    private String refreshCookieName;
 
     public ResponseCookie generateTokenCookie(User user) {
-        var token = createToken(user.getEmail());
-        return ResponseCookie.from(cookieName, token).httpOnly(true).maxAge(24 * 60 * 60).path("/api")
-                .build();
+        var token = createTokenFromEmail(user.getEmail());
+        return generateCookie(cookieName, token, "/api");
+    }
+
+    public ResponseCookie generateRefreshTokenCookie(String refreshToken) {
+        return generateCookie(refreshCookieName, refreshToken, "/api/auth/refresh-token");
+    }
+
+    public String getTokenFromCookie(HttpServletRequest request) {
+        return getCookieValueByName(request, cookieName);
+    }
+
+    public String getRefreshTokenFromCookie(HttpServletRequest request) {
+        return getCookieValueByName(request, refreshCookieName);
     }
 
     public ResponseCookie deleteTokenCookie() {
         return ResponseCookie.from(cookieName, Strings.EMPTY).path("/api").build();
+    }
+
+    public ResponseCookie deleteRefreshTokenCookie() {
+        return ResponseCookie.from(refreshCookieName, Strings.EMPTY).path("/api/auth/refresh-token").build();
     }
 
     public String getEmailFromToken(String token) {
@@ -64,13 +80,22 @@ public class JwtService {
         }
     }
 
-    private String createToken(String email) {
+    private String createTokenFromEmail(String email) {
         return Jwts.builder()
                 .setSubject(email)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
+    }
+
+    private ResponseCookie generateCookie(String name, String value, String path) {
+        return ResponseCookie.from(name, value).httpOnly(true).maxAge(24 * 60 * 60).path(path).build();
+    }
+
+    private String getCookieValueByName(HttpServletRequest request, String name) {
+        var cookie = WebUtils.getCookie(request, name);
+        return Objects.nonNull(cookie) ? cookie.getValue() : null;
     }
 
     private Key getSigningKey() {

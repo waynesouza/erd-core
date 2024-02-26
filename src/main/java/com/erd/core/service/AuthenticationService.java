@@ -1,5 +1,6 @@
 package com.erd.core.service;
 
+import com.erd.core.dto.LogoutDTO;
 import com.erd.core.dto.RefreshTokenMessageDTO;
 import com.erd.core.dto.request.AuthenticationRequestDTO;
 import com.erd.core.dto.response.AuthenticationResponseDTO;
@@ -21,7 +22,6 @@ public class AuthenticationService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthenticationService.class);
 
-
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenService refreshTokenService;
     private final JwtService jwtService;
@@ -40,11 +40,14 @@ public class AuthenticationService {
         var userDetails = (User) authentication.getPrincipal();
 
         var tokenCookie = jwtService.generateTokenCookie(userDetails);
+        var refreshToken = refreshTokenService.findOrCreate(userDetails.getId());
+        var refreshTokenCookie = jwtService.generateRefreshTokenCookie(refreshToken.getToken());
 
-        return new AuthenticationResponseDTO(tokenCookie.toString(), userDetails.getEmail(), userDetails.getFirstName() + " " + userDetails.getLastName());
+        return new AuthenticationResponseDTO(tokenCookie.toString(), refreshTokenCookie.toString(), userDetails.getEmail(), userDetails.getFirstName() + " " + userDetails.getLastName());
     }
 
     public RefreshTokenMessageDTO refreshToken(HttpServletRequest request) {
+        logger.info("Refreshing token");
         var refreshToken = jwtService.getRefreshTokenFromCookie(request);
 
         if (Objects.nonNull(refreshToken) && !refreshToken.isEmpty()) {
@@ -53,16 +56,32 @@ public class AuthenticationService {
                     .map(RefreshToken::getUser)
                     .map(user -> {
                         var tokenCookie = jwtService.generateTokenCookie(user);
+                        logger.info("Token refreshed successfully");
                         return new RefreshTokenMessageDTO(tokenCookie, "Token refreshed successfully");
                     })
-                    .orElseThrow(() -> new RefreshTokenException(refreshToken, "Refresh token is not in database!"));
+                    .orElseThrow(() -> {
+                        logger.error("Refresh token is not in database!");
+                        return new RefreshTokenException(refreshToken, "Refresh token is not in database!");
+                    });
         }
 
+        logger.error("Refresh token is empty!");
         return new RefreshTokenMessageDTO(null, "Refresh token is empty!");
     }
 
-    public String logout() {
-        return jwtService.deleteTokenCookie().toString();
+    public LogoutDTO logout() {
+        logger.info("Logging out user");
+        var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        if (!principal.toString().equals("anonymousUser")) {
+            var userId = ((User) principal).getId();
+            refreshTokenService.deleteByUser(userId);
+        }
+
+        var tokenCookie = jwtService.deleteTokenCookie();
+        var refreshTokenCookie = jwtService.deleteRefreshTokenCookie();
+
+        return new LogoutDTO(tokenCookie.toString(), refreshTokenCookie.toString());
     }
 
 }

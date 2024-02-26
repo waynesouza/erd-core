@@ -3,7 +3,8 @@ package com.erd.core.service;
 import com.erd.core.exception.RefreshTokenException;
 import com.erd.core.model.RefreshToken;
 import com.erd.core.repository.RefreshTokenRepository;
-import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,31 +20,35 @@ public class RefreshTokenService {
     @Value("${erd.app.jwt.refresh-expiration}")
     private Long expiration;
 
+    private static final Logger logger = LoggerFactory.getLogger(RefreshTokenService.class);
+
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserService userService;
-    private final JwtService jwtService;
 
-    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, UserService userService, JwtService jwtService) {
+    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, UserService userService) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userService = userService;
-        this.jwtService = jwtService;
     }
 
     public Optional<RefreshToken> findByToken(String token) {
+        logger.info("Finding refresh token by token");
         return refreshTokenRepository.findByToken(token);
     }
 
     @Transactional
-    public RefreshToken create(UUID userId) {
-        var refreshToken = new RefreshToken();
+    public RefreshToken findOrCreate(UUID userId) {
+        var refreshToken =  new RefreshToken();
 
         refreshToken.setUser(userService.findById(userId));
         refreshToken.setToken(UUID.randomUUID().toString());
         refreshToken.setExpiration(Instant.now().plusMillis(expiration));
+
+        logger.info("Creating refresh token");
         return refreshTokenRepository.save(refreshToken);
     }
 
     public RefreshToken verifyExpiration(RefreshToken refreshToken) {
+        logger.info("Verifying refresh token expiration");
         if (refreshToken.getExpiration().compareTo(Instant.now()) < 0) {
             refreshTokenRepository.delete(refreshToken);
             throw new RefreshTokenException(refreshToken.getToken(), "Refresh token was expired. Please make a new login request");
@@ -53,6 +58,7 @@ public class RefreshTokenService {
 
     @Transactional
     public void deleteByUser(UUID userId) {
+        logger.info("Deleting refresh token by user");
         refreshTokenRepository.deleteByUser(userService.findById(userId));
     }
 

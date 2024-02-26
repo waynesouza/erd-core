@@ -59,33 +59,40 @@ public class JwtService {
     }
 
     public ResponseCookie deleteTokenCookie() {
-        return ResponseCookie.from(cookieName, Strings.EMPTY).path("/api").build();
+        return ResponseCookie.from(cookieName).path("/api").build();
     }
 
     public ResponseCookie deleteRefreshTokenCookie() {
-        return ResponseCookie.from(refreshCookieName, Strings.EMPTY).path("/api/auth/refresh-token").build();
+        return ResponseCookie.from(refreshCookieName).path("/api/auth/refresh-token").build();
     }
 
     public String getEmailFromToken(String token) {
-        return Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token).getBody().getSubject();
+        return Jwts.parserBuilder().setSigningKey(getKey()).build().parseClaimsJws(token).getBody().getSubject();
     }
 
     public Boolean isTokenValid(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parse(token);
+            Jwts.parserBuilder().setSigningKey(getKey()).build().parse(token);
             return Boolean.TRUE;
-        } catch (MalformedJwtException | ExpiredJwtException | UnsupportedJwtException | IllegalArgumentException e) {
-            logger.error("{} token: {}", e instanceof IllegalArgumentException ? "Empty" : e.getMessage().split(" ")[0], e.getMessage());
-            return Boolean.FALSE;
+        } catch (MalformedJwtException e) {
+            logger.error("Invalid JWT token: {}", e.getMessage());
+        } catch (ExpiredJwtException e) {
+            logger.error("JWT token is expired: {}", e.getMessage());
+        } catch (UnsupportedJwtException e) {
+            logger.error("JWT token is unsupported: {}", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            logger.error("JWT claims string is empty: {}", e.getMessage());
         }
+
+        return Boolean.FALSE;
     }
 
     private String createTokenFromEmail(String email) {
         return Jwts.builder()
                 .setSubject(email)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date((new Date()).getTime() + expiration))
+                .signWith(getKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
@@ -98,7 +105,7 @@ public class JwtService {
         return Objects.nonNull(cookie) ? cookie.getValue() : null;
     }
 
-    private Key getSigningKey() {
+    private Key getKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 

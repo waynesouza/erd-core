@@ -2,7 +2,9 @@ package com.erd.core.dto;
 
 import org.springframework.http.ResponseCookie;
 
-public class RefreshTokenMessageDTO {
+import java.io.Serializable;
+
+public class RefreshTokenMessageDTO implements Serializable {
 
     private ResponseCookie token;
     private String message;

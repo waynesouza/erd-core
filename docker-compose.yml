@@ -1,20 +1,54 @@
-version: '3.1'
+version: '3.8'
 
 services:
   mongo:
     image: mongo
     restart: always
+    env_file: .env
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: root
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     ports:
-      - "27017:27017"
+      - ${MONGO_PORT}:${MONGO_PORT}
 
   postgres:
     image: postgres
     restart: always
+    env_file: .env
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - ${POSTGRES_PORT}:${POSTGRES_PORT}
+
+  erd-core:
+    depends_on:
+      - mongo
+      - postgres
+    build: .
+    restart: on-failure
+    env_file: .env
+    environment:
+      SPRING_APPLICATION_JSON: '{
+        "spring.datasource.url": "jdbc:postgresql://postgres:${POSTGRES_PORT}/${POSTGRES_DB}",
+        "spring.datasource.username": "${POSTGRES_USER}",
+        "spring.datasource.password": "${POSTGRES_PASSWORD}",
+        "spring.datasource.driver-class-name": "org.postgresql.Driver",
+        "spring.datasource.jpa.hibernate.ddl-auto": "update",
+        "spring.datasource.jpa.show-sql": "true",
+        "spring.data.mongodb.uri": "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:${MONGO_PORT}/${MONGO_DB}?authSource=admin",
+        "erd.app.jwt.secret": "${JWT_SECRET}",
+        "erd.app.jwt.expiration": "${JWT_EXPIRATION}",
+        "erd.app.jwt.refresh-expiration": "${JWT_REFRESH_EXPIRATION}",
+        "erd.app.jwt.cookie-name": "${JWT_COOKIE_NAME}",
+        "erd.app.jwt.refresh-cookie-name": "${JWT_REFRESH_COOKIE_NAME}"
+      }'
+    ports:
+      - ${SPRING_LOCAL_PORT}:${SPRING_DOCKER_PORT}
+    volumes:
+      - .m2:/root/.m2
+    stdin_open: true
+    tty: true
+
+volumes:
+  db:

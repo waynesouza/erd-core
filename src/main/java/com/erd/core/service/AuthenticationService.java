@@ -56,8 +56,9 @@ public class AuthenticationService {
                     .map(RefreshToken::getUser)
                     .map(user -> {
                         var tokenCookie = jwtService.generateTokenCookie(user);
+                        var refreshTokenCookie = jwtService.generateRefreshTokenCookie(refreshToken);
                         logger.info("Token refreshed successfully");
-                        return new RefreshTokenMessageDTO(tokenCookie, "Token refreshed successfully");
+                        return new RefreshTokenMessageDTO(tokenCookie, refreshTokenCookie, "Token refreshed successfully");
                     })
                     .orElseThrow(() -> {
                         logger.error("Refresh token is not in database!");
@@ -66,7 +67,7 @@ public class AuthenticationService {
         }
 
         logger.error("Refresh token is empty!");
-        return new RefreshTokenMessageDTO(null, "Refresh token is empty!");
+        return new RefreshTokenMessageDTO(null, null, "Refresh token is empty!");
     }
 
     public LogoutDTO logout() {

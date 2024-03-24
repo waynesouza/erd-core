@@ -1,13 +1,21 @@
 package com.erd.core.dto.request;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 public class ProjectCreateRequestDTO implements Serializable {
 
     private String name;
     private String description;
-    private String createdAt;
     private String userEmail;
+
+    public ProjectCreateRequestDTO() { }
+
+    public ProjectCreateRequestDTO(String name, String description, String userEmail) {
+        this.name = name;
+        this.description = description;
+        this.userEmail = userEmail;
+    }
 
     public String getName() {
         return name;
@@ -23,14 +31,6 @@ public class ProjectCreateRequestDTO implements Serializable {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public String getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(String createdAt) {
-        this.createdAt = createdAt;
     }
 
     public String getUserEmail() {

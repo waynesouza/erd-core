@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+import static com.erd.core.mapper.ProjectMapper.toEntity;
+
 @Service
 public class ProjectService {
 
@@ -32,7 +34,7 @@ public class ProjectService {
 
     public ProjectResponseDTO create(ProjectCreateRequestDTO projectCreateRequestDto) {
         logger.info("Saving project data");
-        Project createdProject = projectRepository.save(modelMapper.map(projectCreateRequestDto, Project.class));
+        Project createdProject = projectRepository.save(toEntity(projectCreateRequestDto));
         teamService.create(projectCreateRequestDto.getUserEmail(), createdProject);
         return modelMapper.map(createdProject, ProjectResponseDTO.class);
     }

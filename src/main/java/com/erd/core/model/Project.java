@@ -27,6 +27,15 @@ public class Project {
     @OneToMany(mappedBy = "project")
     private List<Team> teams;
 
+    public Project() { }
+
+    public Project(String name, String description) {
+        this.name = name;
+        this.description = description;
+        this.createdAt = LocalDateTime.now();
+        this.teams = List.of();
+    }
+
     public UUID getId() {
         return id;
     }

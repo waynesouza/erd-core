@@ -27,7 +27,11 @@ public class WebSocketController {
 
     @GetMapping("/diagram/{projectId}")
     public ResponseEntity<DiagramDataResponseDTO> getDiagramByProjectId(@PathVariable String projectId) {
-        return ResponseEntity.ok(webSocketService.getDiagramByProjectId(projectId));
+        try {
+            return ResponseEntity.ok(webSocketService.getDiagramByProjectId(projectId));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
 }

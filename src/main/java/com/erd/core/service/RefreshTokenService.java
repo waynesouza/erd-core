@@ -37,6 +37,14 @@ public class RefreshTokenService {
 
     @Transactional
     public RefreshToken findOrCreate(UUID userId) {
+        logger.info("Finding refresh token");
+        var refreshTokenFound = refreshTokenRepository.findByUserId(userId);
+
+        if (Objects.nonNull(refreshTokenFound) && isExpired(refreshTokenFound)) {
+            logger.info("Deleting expired refresh token");
+            refreshTokenRepository.delete(refreshTokenFound);
+        }
+
         var refreshToken =  new RefreshToken();
 
         refreshToken.setUser(userService.findById(userId));
@@ -60,6 +68,10 @@ public class RefreshTokenService {
     public void deleteByUser(UUID userId) {
         logger.info("Deleting refresh token by user");
         refreshTokenRepository.deleteByUser(userService.findById(userId));
+    }
+
+    private Boolean isExpired(RefreshToken refreshToken) {
+        return refreshToken.getExpiration().compareTo(Instant.now()) < 0;
     }
 
 }

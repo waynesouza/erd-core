@@ -7,12 +7,14 @@ import java.io.Serializable;
 public class RefreshTokenMessageDTO implements Serializable {
 
     private ResponseCookie token;
+    private ResponseCookie refreshToken;
     private String message;
 
     public RefreshTokenMessageDTO() { }
 
-    public RefreshTokenMessageDTO(ResponseCookie token, String message) {
+    public RefreshTokenMessageDTO(ResponseCookie token, ResponseCookie refreshToken, String message) {
         this.token = token;
+        this.refreshToken = refreshToken;
         this.message = message;
     }
 
@@ -22,6 +24,14 @@ public class RefreshTokenMessageDTO implements Serializable {
 
     public void setToken(ResponseCookie token) {
         this.token = token;
+    }
+
+    public ResponseCookie getRefreshToken() {
+        return refreshToken;
+    }
+
+    public void setRefreshToken(ResponseCookie refreshToken) {
+        this.refreshToken = refreshToken;
     }
 
     public String getMessage() {

@@ -29,15 +29,6 @@ public class WebSocketService {
         this.messagingTemplate = messagingTemplate;
     }
 
-    public DiagramDataResponseDTO getDiagramByProjectId(String projectId) {
-        logger.info("Getting diagram by projectId: {}", projectId);
-        DiagramDataResponseDTO dataResponseDto = diagramRepository.findByProjectId(projectId)
-                .map(diagramMapper::toResponseDto)
-                .orElseThrow(() -> new RuntimeException("Diagram not found for projectId: " + projectId));
-        logger.info("Returning diagram data: {}", diagramMapper.convertToSting(dataResponseDto));
-        return dataResponseDto;
-    }
-
     public void save(DiagramDataRequestDTO diagramDataRequestDto) {
         try {
             logger.info("Saving or updating diagram data");

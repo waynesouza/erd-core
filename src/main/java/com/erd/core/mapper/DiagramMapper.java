@@ -2,6 +2,7 @@ package com.erd.core.mapper;
 
 import com.erd.core.dto.LinkDataDTO;
 import com.erd.core.dto.NodeDataDTO;
+import com.erd.core.dto.request.CreateDiagramRequestDTO;
 import com.erd.core.dto.request.DiagramDataRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.model.mongo.Diagram;
@@ -27,16 +28,26 @@ public class DiagramMapper {
     public DiagramMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
-    public Diagram toEntity(DiagramDataRequestDTO diagramDataRequestDto) {
-        String nodeData = convertToSting(diagramDataRequestDto.getNodeDataArray());
-        String linkData = convertToSting(diagramDataRequestDto.getLinkDataArray());
-        String projectId = diagramDataRequestDto.getProjectId().toString();
+
+    public Diagram toEntity(DiagramDataRequestDTO requestDto) {
+        String nodeData = convertToSting(requestDto.getNodeDataArray());
+        String linkData = convertToSting(requestDto.getLinkDataArray());
+        String projectId = requestDto.getProjectId().toString();
+
         return new Diagram(nodeData, linkData, projectId);
+    }
+
+    public Diagram toEntity(CreateDiagramRequestDTO requestDto) {
+        Diagram entity = new Diagram();
+        entity.setProjectId(requestDto.getProjectId());
+
+        return entity;
     }
 
     public DiagramDataResponseDTO toResponseDto(Diagram diagram) {
         List<NodeDataDTO> nodeDataArray = Objects.requireNonNullElse(convertJsonToList(diagram.getNodeData(), new TypeReference<>() {}), new ArrayList<>());
         List<LinkDataDTO> linkDataArray = Objects.requireNonNullElse(convertJsonToList(diagram.getLinkData(), new TypeReference<>() {}), new ArrayList<>());
+
         return new DiagramDataResponseDTO(nodeDataArray, linkDataArray);
     }
 

@@ -14,16 +14,19 @@ public class ItemDTO {
     private Boolean pk;
 
     @JsonProperty
+    private Boolean fk;
+
+    @JsonProperty
     private Boolean unique;
 
     @JsonProperty
-    private String defaultValue;
-
-    @JsonProperty
-    private Boolean nullable;
+    private Boolean notNull;
 
     @JsonProperty
     private Boolean autoIncrement;
+
+    @JsonProperty
+    private String defaultValue;
 
     public String getName() {
         return name;
@@ -49,6 +52,14 @@ public class ItemDTO {
         this.pk = pk;
     }
 
+    public Boolean getFk() {
+        return fk;
+    }
+
+    public void setFk(Boolean fk) {
+        this.fk = fk;
+    }
+
     public Boolean getUnique() {
         return unique;
     }
@@ -57,20 +68,12 @@ public class ItemDTO {
         this.unique = unique;
     }
 
-    public String getDefaultValue() {
-        return defaultValue;
+    public Boolean getNotNull() {
+        return notNull;
     }
 
-    public void setDefaultValue(String defaultValue) {
-        this.defaultValue = defaultValue;
-    }
-
-    public Boolean getNullable() {
-        return nullable;
-    }
-
-    public void setNullable(Boolean nullable) {
-        this.nullable = nullable;
+    public void setNotNull(Boolean notNull) {
+        this.notNull = notNull;
     }
 
     public Boolean getAutoIncrement() {
@@ -79,6 +82,14 @@ public class ItemDTO {
 
     public void setAutoIncrement(Boolean autoIncrement) {
         this.autoIncrement = autoIncrement;
+    }
+
+    public String getDefaultValue() {
+        return defaultValue;
+    }
+
+    public void setDefaultValue(String defaultValue) {
+        this.defaultValue = defaultValue;
     }
 
 }

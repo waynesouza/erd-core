@@ -10,7 +10,11 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
+
+import static com.erd.core.util.ConstantUtil.TEMPLATE_WELCOME;
 
 @Service
 public class UserService implements UserDetailsService {
@@ -18,11 +22,13 @@ public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
+    private final MailService mailService;
 
-    public UserService(UserRepository userRepository, ModelMapper modelMapper, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, ModelMapper modelMapper, PasswordEncoder passwordEncoder, MailService mailService) {
         this.userRepository = userRepository;
         this.modelMapper = modelMapper;
         this.passwordEncoder = passwordEncoder;
+        this.mailService = mailService;
     }
 
     @Override
@@ -39,6 +45,7 @@ public class UserService implements UserDetailsService {
         var user = modelMapper.map(signupRequestDto, User.class);
         user.setPassword(passwordEncoder.encode(signupRequestDto.getPassword()));
         userRepository.save(user);
+        mailService.sendEmail(signupRequestDto.getEmail(), buildVariables(signupRequestDto), TEMPLATE_WELCOME);
     }
 
     public User findByEmail(String email) {
@@ -49,6 +56,14 @@ public class UserService implements UserDetailsService {
     public User findById(UUID id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    }
+
+    private Map<String, String> buildVariables(SignupRequestDTO requestDto) {
+        var variables = new HashMap<String, String>();
+        variables.put("firstName", requestDto.getFirstName());
+        variables.put("lastName", requestDto.getLastName());
+
+        return variables;
     }
 
 }

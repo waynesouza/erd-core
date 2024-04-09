@@ -1,5 +1,6 @@
 package com.erd.core.controller;
 
+import com.erd.core.dto.request.ResetPasswordRequestDTO;
 import com.erd.core.dto.request.SignupRequestDTO;
 import com.erd.core.model.PasswordReset;
 import com.erd.core.model.User;
@@ -15,14 +16,17 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -72,10 +76,37 @@ public class UserControllerTest {
     }
 
     @Test
+    public void testForgotPassword() throws Exception {
+        var user = buildUser();
+        userRepository.save(user);
+
+        MvcResult result = mockMvc.perform(post("/api/user/forgot-password")
+                        .with(user("test@test.com")))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String content = result.getResponse().getContentAsString();
+        assertEquals("Password reset link sent to your email", content);
+    }
+
+    @Test
+    public void testForgotPasswordErrorUserNotFound() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/user/forgot-password")
+                        .with(user("test@test.com")))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        String content = result.getResponse().getContentAsString();
+        assertEquals("User not found", content);
+    }
+
+    @Test
     public void testResetPassword() throws Exception {
-        User user = new User();
-        user.setEmail("test@test.com");
-        user.setPassword("P4$sword");
+        ResetPasswordRequestDTO resetPasswordRequestDto = new ResetPasswordRequestDTO();
+        resetPasswordRequestDto.setToken("validToken");
+        resetPasswordRequestDto.setNewPassword("P4$sword");
+
+        var user = buildUser();
         var savedUser = userRepository.save(user);
 
         PasswordReset passwordReset = new PasswordReset();
@@ -87,16 +118,19 @@ public class UserControllerTest {
         userRepository.save(user);
 
         mockMvc.perform(post("/api/user/reset-password")
-                        .param("token", "validToken")
-                        .param("newPassword", "newP4$sword"))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resetPasswordRequestDto)))
                 .andExpect(status().isOk());
     }
 
     @Test
     public void testResetPasswordWithInvalidPassword() throws Exception {
-        User user = new User();
-        user.setEmail("test@test.com");
-        user.setPassword("P4$sword");
+        ResetPasswordRequestDTO resetPasswordRequestDto = new ResetPasswordRequestDTO();
+        resetPasswordRequestDto.setToken("validToken");
+        resetPasswordRequestDto.setNewPassword("password");
+
+        var user = buildUser();
+
         var savedUser = userRepository.save(user);
 
         PasswordReset passwordReset = new PasswordReset();
@@ -108,9 +142,17 @@ public class UserControllerTest {
         userRepository.save(user);
 
         mockMvc.perform(post("/api/user/reset-password")
-                        .param("token", "validToken")
-                        .param("newPassword", "password"))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resetPasswordRequestDto)))
                 .andExpect(status().isBadRequest());
+    }
+
+    private User buildUser() {
+        User user = new User();
+        user.setEmail("test@test.com");
+        user.setPassword("P4$sword");
+
+        return user;
     }
 
 }

@@ -1,5 +1,6 @@
 package com.erd.core.service;
 
+import com.erd.core.dto.request.ResetPasswordRequestDTO;
 import com.erd.core.dto.request.SignupRequestDTO;
 import com.erd.core.model.PasswordReset;
 import com.erd.core.model.User;
@@ -11,6 +12,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,7 +29,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,10 +45,10 @@ public class UserServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private MailService mailService;
+    private ModelMapper modelMapper;
 
     @Mock
-    private ModelMapper modelMapper;
+    private MailService mailService;
 
     @InjectMocks
     private UserService userService;
@@ -81,8 +84,8 @@ public class UserServiceTest {
 
         userService.create(signupRequestDto);
 
-        verify(userRepository, times(1)).save(any(User.class));
-        verify(mailService, times(1)).sendEmail(anyString(), anyMap(), anyString());
+        verify(userRepository).save(any(User.class));
+        verify(mailService).sendEmail(anyString(), anyMap(), anyString());
     }
 
     @Test
@@ -151,12 +154,15 @@ public class UserServiceTest {
         User user = new User();
         user.setEmail("test@test.com");
 
+        Authentication auth = new UsernamePasswordAuthenticationToken(user.getEmail(), null);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
 
-        userService.forgotPassword("test@test.com");
+        userService.forgotPassword();
 
-        verify(userRepository, times(1)).save(any(User.class));
-        verify(mailService, times(1)).sendEmail(anyString(), anyMap(), anyString());
+        verify(userRepository).save(any(User.class));
+        verify(mailService).sendEmail(anyString(), anyMap(), anyString());
     }
 
     @Test
@@ -168,10 +174,10 @@ public class UserServiceTest {
         when(userRepository.findByPasswordResetToken(anyString(), any(LocalDateTime.class))).thenReturn(Optional.of(user));
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
 
-        userService.resetPassword("token", "newP4$sword");
+        userService.resetPassword(new ResetPasswordRequestDTO("token", "newP4$sword"));
 
-        verify(passwordResetRepository, times(1)).delete(any(PasswordReset.class));
-        verify(userRepository, times(1)).save(any(User.class));
+        verify(passwordResetRepository).delete(any(PasswordReset.class));
+        verify(userRepository).save(any(User.class));
     }
 
     @Test
@@ -182,14 +188,14 @@ public class UserServiceTest {
 
         when(userRepository.findByPasswordResetToken(anyString(), any(LocalDateTime.class))).thenReturn(Optional.of(user));
 
-        assertThrows(IllegalArgumentException.class, () -> userService.resetPassword("token", "invalid")); // senha inválida
+        assertThrows(IllegalArgumentException.class, () -> userService.resetPassword(new ResetPasswordRequestDTO("token", "invalid")));
     }
 
     @Test
     public void testResetPasswordInvalidToken() {
         when(userRepository.findByPasswordResetToken(anyString(), any(LocalDateTime.class))).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> userService.resetPassword("invalidToken", "newPassword"));
+        assertThrows(IllegalArgumentException.class, () -> userService.resetPassword(new ResetPasswordRequestDTO("invalidToken", "newPassword")));
     }
 
 }

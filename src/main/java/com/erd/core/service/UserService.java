@@ -1,11 +1,14 @@
 package com.erd.core.service;
 
+import com.erd.core.dto.request.ResetPasswordRequestDTO;
 import com.erd.core.dto.request.SignupRequestDTO;
 import com.erd.core.model.PasswordReset;
 import com.erd.core.model.User;
 import com.erd.core.repository.PasswordResetRepository;
 import com.erd.core.repository.UserRepository;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -67,10 +70,13 @@ public class UserService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
-    public void forgotPassword(String email) {
+    public void forgotPassword() {
+        var email = getLoggedInUserEmail();
         var user = findByEmail(email);
         var token = UUID.randomUUID().toString();
-        user.setPasswordReset(new PasswordReset(token));
+        var passwordReset = new PasswordReset(token);
+        passwordReset.setUser(user);
+        user.setPasswordReset(passwordReset);
 
         Map<String, String> variables = new HashMap<>();
         variables.put("firstName", user.getFirstName());
@@ -81,8 +87,9 @@ public class UserService implements UserDetailsService {
         mailService.sendEmail(email, variables, TEMPLATE_RESET_PASSWORD);
     }
 
-    public void resetPassword(String token, String newPassword) {
-        var user = userRepository.findByPasswordResetToken(token, LocalDateTime.now())
+    public void resetPassword(ResetPasswordRequestDTO resetPasswordRequestDto) {
+        var newPassword = resetPasswordRequestDto.getNewPassword();
+        var user = userRepository.findByPasswordResetToken(resetPasswordRequestDto.getToken(), LocalDateTime.now())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired token"));
 
         checkPassword(newPassword);
@@ -104,6 +111,11 @@ public class UserService implements UserDetailsService {
         variables.put("lastName", requestDto.getLastName());
 
         return variables;
+    }
+
+    private String getLoggedInUserEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication.getName();
     }
 
 }

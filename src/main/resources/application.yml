@@ -1,13 +1,29 @@
 spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  mail:
+    host:
+    port:
+    username:
+    password:
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          ssl:
+            trust:
+            enable: false
+
   datasource:
     url: jdbc:postgresql://localhost:5432/diagram
     username: root
     password: root
     driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
 
   data:
     mongodb:
@@ -16,7 +32,7 @@ spring:
 erd:
   app:
     jwt:
-      secret: 1b4e92769871538c645e4145c964173046e015f55fb706a5c49b8f0c2c183daf
+      secret:
       expiration: 300000
       refresh-expiration: 2629746000
       cookie-name: erd-token

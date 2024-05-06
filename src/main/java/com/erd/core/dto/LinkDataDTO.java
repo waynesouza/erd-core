@@ -5,6 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class LinkDataDTO {
 
     @JsonProperty
+    private String id;
+
+    @JsonProperty
     private String from;
 
     @JsonProperty

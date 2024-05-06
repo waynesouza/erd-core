@@ -1,7 +1,6 @@
 package com.erd.core.dto.request;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
 
 public class ProjectCreateRequestDTO implements Serializable {
 

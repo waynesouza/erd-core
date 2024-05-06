@@ -1,11 +1,14 @@
 package com.erd.core.model;
 
 import com.erd.core.enumeration.RoleEnum;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 import org.springframework.security.core.GrantedAuthority;
@@ -37,6 +40,10 @@ public class User implements UserDetails {
 
     @OneToMany(mappedBy = "user")
     private List<Team> teams;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    @PrimaryKeyJoinColumn
+    private PasswordReset passwordReset;
 
     public User() { }
 
@@ -133,6 +140,14 @@ public class User implements UserDetails {
 
     public void setTeams(List<Team> teams) {
         this.teams = teams;
+    }
+
+    public PasswordReset getPasswordReset() {
+        return passwordReset;
+    }
+
+    public void setPasswordReset(PasswordReset passwordReset) {
+        this.passwordReset = passwordReset;
     }
 
 }

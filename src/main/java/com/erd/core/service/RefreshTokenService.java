@@ -43,16 +43,18 @@ public class RefreshTokenService {
         if (Objects.nonNull(refreshTokenFound) && isExpired(refreshTokenFound)) {
             logger.info("Deleting expired refresh token");
             refreshTokenRepository.delete(refreshTokenFound);
+
+            var refreshToken = new RefreshToken();
+
+            refreshToken.setUser(userService.findById(userId));
+            refreshToken.setToken(UUID.randomUUID().toString());
+            refreshToken.setExpiration(Instant.now().plusMillis(expiration));
+
+            logger.info("Creating refresh token");
+            return refreshTokenRepository.save(refreshToken);
         }
 
-        var refreshToken =  new RefreshToken();
-
-        refreshToken.setUser(userService.findById(userId));
-        refreshToken.setToken(UUID.randomUUID().toString());
-        refreshToken.setExpiration(Instant.now().plusMillis(expiration));
-
-        logger.info("Creating refresh token");
-        return refreshTokenRepository.save(refreshToken);
+        return refreshTokenFound;
     }
 
     public RefreshToken verifyExpiration(RefreshToken refreshToken) {

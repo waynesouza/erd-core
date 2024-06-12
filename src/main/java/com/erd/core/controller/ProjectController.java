@@ -3,6 +3,7 @@ package com.erd.core.controller;
 import com.erd.core.dto.request.ProjectCreateRequestDTO;
 import com.erd.core.dto.request.ProjectUpdateRequestDTO;
 import com.erd.core.dto.request.TeamMemberRequestDTO;
+import com.erd.core.dto.response.ProjectDetailsResponseDTO;
 import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.service.ProjectService;
 import org.springframework.http.HttpStatus;
@@ -39,6 +40,11 @@ public class ProjectController {
     @GetMapping("/user-email/{email}")
     public ResponseEntity<List<ProjectResponseDTO>> getProjectsByUserEmail(@PathVariable(name = "email") String email) {
         return new ResponseEntity<>(projectService.getProjectsByUserEmail(email), HttpStatus.OK);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ProjectDetailsResponseDTO> getProjectDetailsById(@PathVariable(name = "id") UUID id) {
+        return new ResponseEntity<>(projectService.getProjectDetailsById(id), HttpStatus.OK);
     }
 
     @PutMapping

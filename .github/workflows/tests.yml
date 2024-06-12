@@ -3,7 +3,7 @@ name: Run Tests
 on:
   pull_request:
     types: [opened, synchronize]
-    branches: [ feature/send-email ]
+    branches: [ main ]
 
 jobs:
   build:

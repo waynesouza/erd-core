@@ -1,6 +1,7 @@
 package com.erd.core.service;
 
 import com.erd.core.dto.request.TeamMemberRequestDTO;
+import com.erd.core.dto.response.UserProjectDetailsResponseDTO;
 import com.erd.core.model.Project;
 import com.erd.core.model.Team;
 import com.erd.core.model.User;
@@ -8,6 +9,9 @@ import com.erd.core.repository.TeamRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.UUID;
 
 import static com.erd.core.enumeration.RoleProjectEnum.OWNER;
 
@@ -37,5 +41,10 @@ public class TeamService {
     }
 
     // TODO: Add method to remove team member from project
+
+    public List<UserProjectDetailsResponseDTO> findByProjectId(UUID projectId) {
+        logger.info("Getting team members by project: {}", projectId);
+        return teamRepository.findByProjectId(projectId);
+    }
 
 }

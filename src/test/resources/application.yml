@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: password
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+
+erd:
+  app:
+    jwt:
+      secret: test
+      expiration: 300000
+      refresh-expiration: 2629746000
+      cookie-name: erd-token-test
+      refresh-cookie-name: erd-refresh-token-test

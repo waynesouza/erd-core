@@ -3,6 +3,7 @@ package com.erd.core.service;
 import com.erd.core.dto.request.ProjectCreateRequestDTO;
 import com.erd.core.dto.request.ProjectUpdateRequestDTO;
 import com.erd.core.dto.request.TeamMemberRequestDTO;
+import com.erd.core.dto.request.UpdateTeamMemberRequestDTO;
 import com.erd.core.dto.response.ProjectDetailsResponseDTO;
 import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.model.Project;
@@ -59,10 +60,14 @@ public class ProjectService {
         return responseDto;
     }
 
-    public ProjectResponseDTO update(ProjectUpdateRequestDTO projectUpdateRequestDto) {
+    public ProjectResponseDTO update(ProjectUpdateRequestDTO projectUpdateRequestDto, UUID userId) {
         logger.info("Checking if project exist");
         if (!isProjectExist(projectUpdateRequestDto.getId())) {
             throw new RuntimeException("Project not found for id: " + projectUpdateRequestDto.getId());
+        }
+
+        if (teamService.isUserOwner(userId, projectUpdateRequestDto.getId())) {
+            throw new RuntimeException("Only the OWNER can update the project");
         }
 
         logger.info("Updating project data");
@@ -70,16 +75,42 @@ public class ProjectService {
         return modelMapper.map(updatedProject, ProjectResponseDTO.class);
     }
 
-    public void addTeamMember(TeamMemberRequestDTO teamMemberRequestDto) {
+    public void addTeamMember(TeamMemberRequestDTO teamMemberRequestDto, UUID userId) {
         UUID projectId = teamMemberRequestDto.getProjectId();
         logger.info("Finding project by id: {}", projectId);
+
+        if (teamService.isUserOwner(userId, projectId)) {
+            throw new RuntimeException("Only the OWNER can add team members to the project");
+        }
+
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("Project not found for id: " + projectId));
         teamService.addTeamMember(teamMemberRequestDto, project);
     }
 
-    public void deleteById(UUID id) {
+    public void updateTeamMember(UpdateTeamMemberRequestDTO requestDTO, UUID userId) {
+        if (teamService.isUserOwner(userId, requestDTO.getProjectId())) {
+            throw new RuntimeException("Only the OWNER can update team members");
+        }
+
+        teamService.updateTeamMember(requestDTO);
+    }
+
+    public void removeTeamMember(UUID memberId, UUID projectId, UUID userId) {
+        if (teamService.isUserOwner(userId, projectId)) {
+            throw new RuntimeException("Only the OWNER can remove team members");
+        }
+
+        teamService.removeTeamMember(memberId, projectId);
+    }
+
+    public void deleteById(UUID id, UUID userId) {
         logger.info("Deleting project by id: {}", id);
+
+        if (teamService.isUserOwner(userId, id)) {
+            throw new RuntimeException("Only the OWNER can delete the project");
+        }
+
         projectRepository.deleteById(id);
         // TODO: delete diagram data
     }

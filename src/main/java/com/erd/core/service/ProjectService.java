@@ -26,11 +26,13 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final TeamService teamService;
+    private final UserService userService;
     private final ModelMapper modelMapper;
 
-    public ProjectService(ProjectRepository projectRepository, TeamService teamService, ModelMapper modelMapper) {
+    public ProjectService(ProjectRepository projectRepository, TeamService teamService, UserService userService, ModelMapper modelMapper) {
         this.projectRepository = projectRepository;
         this.teamService = teamService;
+        this.userService = userService;
         this.modelMapper = modelMapper;
     }
 
@@ -60,12 +62,13 @@ public class ProjectService {
         return responseDto;
     }
 
-    public ProjectResponseDTO update(ProjectUpdateRequestDTO projectUpdateRequestDto, UUID userId) {
+    public ProjectResponseDTO update(ProjectUpdateRequestDTO projectUpdateRequestDto) {
         logger.info("Checking if project exist");
         if (!isProjectExist(projectUpdateRequestDto.getId())) {
             throw new RuntimeException("Project not found for id: " + projectUpdateRequestDto.getId());
         }
 
+        var userId = userService.getUserIdByLoggedUserEmail();
         if (teamService.isUserOwner(userId, projectUpdateRequestDto.getId())) {
             throw new RuntimeException("Only the OWNER can update the project");
         }
@@ -75,10 +78,11 @@ public class ProjectService {
         return modelMapper.map(updatedProject, ProjectResponseDTO.class);
     }
 
-    public void addTeamMember(TeamMemberRequestDTO teamMemberRequestDto, UUID userId) {
+    public void addTeamMember(TeamMemberRequestDTO teamMemberRequestDto) {
         UUID projectId = teamMemberRequestDto.getProjectId();
         logger.info("Finding project by id: {}", projectId);
 
+        var userId = userService.getUserIdByLoggedUserEmail();
         if (teamService.isUserOwner(userId, projectId)) {
             throw new RuntimeException("Only the OWNER can add team members to the project");
         }
@@ -88,7 +92,8 @@ public class ProjectService {
         teamService.addTeamMember(teamMemberRequestDto, project);
     }
 
-    public void updateTeamMember(UpdateTeamMemberRequestDTO requestDTO, UUID userId) {
+    public void updateTeamMember(UpdateTeamMemberRequestDTO requestDTO) {
+        var userId = userService.getUserIdByLoggedUserEmail();
         if (teamService.isUserOwner(userId, requestDTO.getProjectId())) {
             throw new RuntimeException("Only the OWNER can update team members");
         }
@@ -96,7 +101,8 @@ public class ProjectService {
         teamService.updateTeamMember(requestDTO);
     }
 
-    public void removeTeamMember(UUID memberId, UUID projectId, UUID userId) {
+    public void removeTeamMember(UUID memberId, UUID projectId) {
+        var userId = userService.getUserIdByLoggedUserEmail();
         if (teamService.isUserOwner(userId, projectId)) {
             throw new RuntimeException("Only the OWNER can remove team members");
         }
@@ -104,9 +110,10 @@ public class ProjectService {
         teamService.removeTeamMember(memberId, projectId);
     }
 
-    public void deleteById(UUID id, UUID userId) {
+    public void deleteById(UUID id) {
         logger.info("Deleting project by id: {}", id);
 
+        var userId = userService.getUserIdByLoggedUserEmail();
         if (teamService.isUserOwner(userId, id)) {
             throw new RuntimeException("Only the OWNER can delete the project");
         }

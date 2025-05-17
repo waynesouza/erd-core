@@ -9,8 +9,15 @@ import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.service.ProjectService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
@@ -42,36 +49,31 @@ public class ProjectController {
     }
 
     @PutMapping
-    public ResponseEntity<ProjectResponseDTO> update(@RequestBody ProjectUpdateRequestDTO projectUpdateRequestDto, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        return new ResponseEntity<>(projectService.update(projectUpdateRequestDto, userId), HttpStatus.OK);
+    public ResponseEntity<ProjectResponseDTO> update(@RequestBody ProjectUpdateRequestDTO projectUpdateRequestDto) {
+        return new ResponseEntity<>(projectService.update(projectUpdateRequestDto), HttpStatus.OK);
     }
 
     @PostMapping("/team-member")
-    public ResponseEntity<Void> addTeamMember(@RequestBody TeamMemberRequestDTO teamMemberRequestDto, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        projectService.addTeamMember(teamMemberRequestDto, userId);
+    public ResponseEntity<Void> addTeamMember(@RequestBody TeamMemberRequestDTO teamMemberRequestDto) {
+        projectService.addTeamMember(teamMemberRequestDto);
         return new ResponseEntity<>(HttpStatus.CREATED);
     }
 
     @PutMapping("/team-member")
-    public ResponseEntity<Void> updateTeamMember(@RequestBody UpdateTeamMemberRequestDTO requestDTO, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        projectService.updateTeamMember(requestDTO, userId);
+    public ResponseEntity<Void> updateTeamMember(@RequestBody UpdateTeamMemberRequestDTO requestDTO) {
+        projectService.updateTeamMember(requestDTO);
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
     @DeleteMapping("/team-member/{memberId}/project/{projectId}")
-    public ResponseEntity<Void> removeTeamMember(@PathVariable UUID memberId, @PathVariable UUID projectId, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        projectService.removeTeamMember(memberId, projectId, userId);
+    public ResponseEntity<Void> removeTeamMember(@PathVariable UUID memberId, @PathVariable UUID projectId) {
+        projectService.removeTeamMember(memberId, projectId);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteById(@PathVariable(name = "id") UUID id, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        projectService.deleteById(id, userId);
+    public ResponseEntity<Void> deleteById(@PathVariable(name = "id") UUID id) {
+        projectService.deleteById(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 

@@ -3,6 +3,7 @@ package com.erd.core.service;
 import com.erd.core.dto.request.ProjectCreateRequestDTO;
 import com.erd.core.dto.request.ProjectUpdateRequestDTO;
 import com.erd.core.dto.request.TeamMemberRequestDTO;
+import com.erd.core.dto.response.ProjectDetailsResponseDTO;
 import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.model.Project;
 import com.erd.core.repository.ProjectRepository;
@@ -43,6 +44,19 @@ public class ProjectService {
         logger.info("Getting projects by userEmail: {}", email);
         List<Project> projects = projectRepository.findByUserEmail(email);
         return modelMapper.map(projects, new TypeToken<List<ProjectResponseDTO>>() {}.getType());
+    }
+
+    public ProjectDetailsResponseDTO getProjectDetailsById(UUID id) {
+        logger.info("Checking if project exist");
+        if (!isProjectExist(id)) {
+            throw new RuntimeException("Project not found for id: " + id);
+        }
+
+        logger.info("Getting project details by id: {}", id);
+        ProjectDetailsResponseDTO responseDto = projectRepository.findProjectDetailsById(id);
+        responseDto.setUsersDto(teamService.findByProjectId(id));
+
+        return responseDto;
     }
 
     public ProjectResponseDTO update(ProjectUpdateRequestDTO projectUpdateRequestDto) {

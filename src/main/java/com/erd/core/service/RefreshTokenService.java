@@ -40,19 +40,24 @@ public class RefreshTokenService {
         logger.info("Finding refresh token");
         var refreshTokenFound = refreshTokenRepository.findByUserId(userId);
 
-        if (Objects.nonNull(refreshTokenFound) && isExpired(refreshTokenFound)) {
-            logger.info("Deleting expired refresh token");
-            refreshTokenRepository.delete(refreshTokenFound);
+        if (Objects.isNull(refreshTokenFound)) {
+            logger.info("Refresh token not found");
+
+            var refreshToken = createRefreshToken(userId);
+
+            logger.info("Creating refresh token");
+            return refreshTokenRepository.save(refreshToken);
+        } else if (isExpired(refreshTokenFound)) {
+            logger.info("Expired refresh token");
+
+            logger.info("Updating refresh token");
+            refreshTokenFound.setToken(UUID.randomUUID().toString());
+            refreshTokenFound.setExpiration(Instant.now().plusMillis(expiration));
+
+            return refreshTokenRepository.save(refreshTokenFound);
         }
 
-        var refreshToken =  new RefreshToken();
-
-        refreshToken.setUser(userService.findById(userId));
-        refreshToken.setToken(UUID.randomUUID().toString());
-        refreshToken.setExpiration(Instant.now().plusMillis(expiration));
-
-        logger.info("Creating refresh token");
-        return refreshTokenRepository.save(refreshToken);
+        return refreshTokenFound;
     }
 
     public RefreshToken verifyExpiration(RefreshToken refreshToken) {
@@ -68,6 +73,15 @@ public class RefreshTokenService {
     public void deleteByUser(UUID userId) {
         logger.info("Deleting refresh token by user");
         refreshTokenRepository.deleteByUser(userService.findById(userId));
+    }
+
+    private RefreshToken createRefreshToken(UUID userId) {
+        var refreshToken = new RefreshToken();
+        refreshToken.setUser(userService.findById(userId));
+        refreshToken.setToken(UUID.randomUUID().toString());
+        refreshToken.setExpiration(Instant.now().plusMillis(expiration));
+
+        return refreshToken;
     }
 
     private Boolean isExpired(RefreshToken refreshToken) {

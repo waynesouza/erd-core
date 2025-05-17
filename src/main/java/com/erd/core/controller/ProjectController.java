@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-@CrossOrigin(origins = "http://localhost:8081", maxAge = 3600, allowCredentials="true")
+//@CrossOrigin(origins = "http://localhost:8081", maxAge = 3600, allowCredentials="true")
 @RestController
 @RequestMapping("/api/project")
 public class ProjectController {
@@ -39,7 +39,7 @@ public class ProjectController {
     }
 
     @GetMapping("/user-email/{email}")
-    public ResponseEntity<List<ProjectResponseDTO>> getProjectsByUserEmail(@PathVariable(name = "email") String email) {
+    public ResponseEntity<List<ProjectDetailsResponseDTO>> getProjectsByUserEmail(@PathVariable(name = "email") String email) {
         return new ResponseEntity<>(projectService.getProjectsByUserEmail(email), HttpStatus.OK);
     }
 
@@ -65,7 +65,7 @@ public class ProjectController {
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
-    @DeleteMapping("/team-member/{memberId}/project/{projectId}")
+    @PutMapping("/team-member/{memberId}/project/{projectId}")
     public ResponseEntity<Void> removeTeamMember(@PathVariable UUID memberId, @PathVariable UUID projectId) {
         projectService.removeTeamMember(memberId, projectId);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);

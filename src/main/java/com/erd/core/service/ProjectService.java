@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,10 +44,16 @@ public class ProjectService {
         return modelMapper.map(createdProject, ProjectResponseDTO.class);
     }
 
-    public List<ProjectResponseDTO> getProjectsByUserEmail(String email) {
+    public List<ProjectDetailsResponseDTO> getProjectsByUserEmail(String email) {
         logger.info("Getting projects by userEmail: {}", email);
         List<Project> projects = projectRepository.findByUserEmail(email);
-        return modelMapper.map(projects, new TypeToken<List<ProjectResponseDTO>>() {}.getType());
+
+        List<ProjectDetailsResponseDTO> projectDetailsResponseDto = new ArrayList<>();
+        projects.forEach(project -> {
+            projectDetailsResponseDto.add(modelMapper.map(project, ProjectDetailsResponseDTO.class));
+            projectDetailsResponseDto.get(projectDetailsResponseDto.size() - 1).setUsersDto(teamService.findByProjectId(project.getId()));
+        });
+        return projectDetailsResponseDto;
     }
 
     public ProjectDetailsResponseDTO getProjectDetailsById(UUID id) {

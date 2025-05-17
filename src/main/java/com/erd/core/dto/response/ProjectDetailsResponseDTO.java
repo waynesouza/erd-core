@@ -15,11 +15,12 @@ public class ProjectDetailsResponseDTO implements Serializable {
 
     public ProjectDetailsResponseDTO() { }
 
-    public ProjectDetailsResponseDTO(UUID id, String name, String description, LocalDateTime createdAt) {
+    public ProjectDetailsResponseDTO(UUID id, String name, String description, LocalDateTime createdAt, List<UserProjectDetailsResponseDTO> usersDto) {
         this.id = id;
         this.name = name;
         this.description = description;
         this.createdAt = createdAt;
+        this.usersDto = usersDto;
     }
 
     public UUID getId() {

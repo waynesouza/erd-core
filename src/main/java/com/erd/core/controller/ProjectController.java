@@ -3,6 +3,7 @@ package com.erd.core.controller;
 import com.erd.core.dto.request.ProjectCreateRequestDTO;
 import com.erd.core.dto.request.ProjectUpdateRequestDTO;
 import com.erd.core.dto.request.TeamMemberRequestDTO;
+import com.erd.core.dto.request.UpdateTeamMemberRequestDTO;
 import com.erd.core.dto.response.ProjectDetailsResponseDTO;
 import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.service.ProjectService;
@@ -48,14 +49,26 @@ public class ProjectController {
     }
 
     @PutMapping
-    public ResponseEntity<ProjectResponseDTO> update(ProjectUpdateRequestDTO projectUpdateRequestDto) {
+    public ResponseEntity<ProjectResponseDTO> update(@RequestBody ProjectUpdateRequestDTO projectUpdateRequestDto) {
         return new ResponseEntity<>(projectService.update(projectUpdateRequestDto), HttpStatus.OK);
     }
 
     @PostMapping("/team-member")
-    public ResponseEntity<Void> addTeamMember(TeamMemberRequestDTO teamMemberRequestDto) {
+    public ResponseEntity<Void> addTeamMember(@RequestBody TeamMemberRequestDTO teamMemberRequestDto) {
         projectService.addTeamMember(teamMemberRequestDto);
         return new ResponseEntity<>(HttpStatus.CREATED);
+    }
+
+    @PutMapping("/team-member")
+    public ResponseEntity<Void> updateTeamMember(@RequestBody UpdateTeamMemberRequestDTO requestDTO) {
+        projectService.updateTeamMember(requestDTO);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    @DeleteMapping("/team-member/{memberId}/project/{projectId}")
+    public ResponseEntity<Void> removeTeamMember(@PathVariable UUID memberId, @PathVariable UUID projectId) {
+        projectService.removeTeamMember(memberId, projectId);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     @DeleteMapping("/{id}")

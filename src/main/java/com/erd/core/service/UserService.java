@@ -7,6 +7,7 @@ import com.erd.core.repository.UserRepository;
 import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -20,13 +21,11 @@ public class UserService implements UserDetailsService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
-    private final AuthenticationService authenticationService;
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
 
-    public UserService(AuthenticationService authenticationService, UserRepository userRepository, ModelMapper modelMapper, PasswordEncoder passwordEncoder) {
-        this.authenticationService = authenticationService;
+    public UserService(UserRepository userRepository, ModelMapper modelMapper, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.modelMapper = modelMapper;
         this.passwordEncoder = passwordEncoder;
@@ -59,10 +58,19 @@ public class UserService implements UserDetailsService {
     }
 
     public UUID getUserIdByLoggedUserEmail() {
-        String email = authenticationService.getLoggedUserEmail();
+        String email = getLoggedUserEmail();
 
         logger.info("Getting user id by email: {}", email);
         return modelMapper.map(findByEmail(email), UserResponseDTO.class).getId();
+    }
+
+    private String getLoggedUserEmail() {
+        logger.info("Getting logged user email");
+        var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof User user) {
+            return user.getEmail();
+        }
+        return null;
     }
 
 }

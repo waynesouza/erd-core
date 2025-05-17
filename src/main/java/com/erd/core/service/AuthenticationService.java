@@ -85,13 +85,4 @@ public class AuthenticationService {
         return new LogoutDTO(tokenCookie.toString(), refreshTokenCookie.toString());
     }
 
-    public String getLoggedUserEmail() {
-        logger.info("Getting logged user email");
-        var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof User user) {
-            return user.getEmail();
-        }
-        return null;
-    }
-
 }

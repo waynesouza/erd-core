@@ -9,12 +9,10 @@ import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.model.Project;
 import com.erd.core.repository.ProjectRepository;
 import org.modelmapper.ModelMapper;
-import org.modelmapper.TypeToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -44,16 +42,37 @@ public class ProjectService {
         return modelMapper.map(createdProject, ProjectResponseDTO.class);
     }
 
+    /**
+     * Retrieves all projects associated with a user's email address.
+     * This method fetches the projects and their associated team members.
+     *
+     * @param email the email address of the user
+     * @return a list of project details including team members
+     * @throws IllegalArgumentException if the email is null or empty
+     * @throws RuntimeException if no projects are found for the user
+     */
     public List<ProjectDetailsResponseDTO> getProjectsByUserEmail(String email) {
         logger.info("Getting projects by userEmail: {}", email);
+
+        if (email == null || email.trim().isEmpty()) {
+            logger.error("Invalid email provided: {}", email);
+            throw new IllegalArgumentException("Email cannot be null or empty");
+        }
+
         List<Project> projects = projectRepository.findByUserEmail(email);
 
-        List<ProjectDetailsResponseDTO> projectDetailsResponseDto = new ArrayList<>();
-        projects.forEach(project -> {
-            projectDetailsResponseDto.add(modelMapper.map(project, ProjectDetailsResponseDTO.class));
-            projectDetailsResponseDto.get(projectDetailsResponseDto.size() - 1).setUsersDto(teamService.findByProjectId(project.getId()));
-        });
-        return projectDetailsResponseDto;
+        if (projects.isEmpty()) {
+            logger.warn("No projects found for user with email: {}", email);
+            throw new RuntimeException("No projects found for user with email: " + email);
+        }
+
+        return projects.stream()
+                .map(project -> {
+                    ProjectDetailsResponseDTO responseDto = modelMapper.map(project, ProjectDetailsResponseDTO.class);
+                    responseDto.setUsersDto(teamService.findByProjectId(project.getId()));
+                    return responseDto;
+                })
+                .toList();
     }
 
     public ProjectDetailsResponseDTO getProjectDetailsById(UUID id) {

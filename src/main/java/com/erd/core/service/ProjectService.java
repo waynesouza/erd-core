@@ -9,7 +9,6 @@ import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.model.Project;
 import com.erd.core.repository.ProjectRepository;
 import org.modelmapper.ModelMapper;
-import org.modelmapper.TypeToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,12 +26,14 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final TeamService teamService;
     private final UserService userService;
+    private final DiagramService diagramService;
     private final ModelMapper modelMapper;
 
-    public ProjectService(ProjectRepository projectRepository, TeamService teamService, UserService userService, ModelMapper modelMapper) {
+    public ProjectService(ProjectRepository projectRepository, TeamService teamService, UserService userService, DiagramService diagramService, ModelMapper modelMapper) {
         this.projectRepository = projectRepository;
         this.teamService = teamService;
         this.userService = userService;
+        this.diagramService = diagramService;
         this.modelMapper = modelMapper;
     }
 
@@ -43,10 +44,37 @@ public class ProjectService {
         return modelMapper.map(createdProject, ProjectResponseDTO.class);
     }
 
-    public List<ProjectResponseDTO> getProjectsByUserEmail(String email) {
+    /**
+     * Retrieves all projects associated with a user's email address.
+     * This method fetches the projects and their associated team members.
+     *
+     * @param email the email address of the user
+     * @return a list of project details including team members
+     * @throws IllegalArgumentException if the email is null or empty
+     * @throws RuntimeException if no projects are found for the user
+     */
+    public List<ProjectDetailsResponseDTO> getProjectsByUserEmail(String email) {
         logger.info("Getting projects by userEmail: {}", email);
+
+        if (email == null || email.trim().isEmpty()) {
+            logger.error("Invalid email provided: {}", email);
+            throw new IllegalArgumentException("Email cannot be null or empty");
+        }
+
         List<Project> projects = projectRepository.findByUserEmail(email);
-        return modelMapper.map(projects, new TypeToken<List<ProjectResponseDTO>>() {}.getType());
+
+        if (projects.isEmpty()) {
+            logger.warn("No projects found for user with email: {}", email);
+            throw new RuntimeException("No projects found for user with email: " + email);
+        }
+
+        return projects.stream()
+                .map(project -> {
+                    ProjectDetailsResponseDTO responseDto = modelMapper.map(project, ProjectDetailsResponseDTO.class);
+                    responseDto.setUsersDto(teamService.findByProjectId(project.getId()));
+                    return responseDto;
+                })
+                .toList();
     }
 
     public ProjectDetailsResponseDTO getProjectDetailsById(UUID id) {
@@ -69,7 +97,7 @@ public class ProjectService {
         }
 
         var userId = userService.getUserIdByLoggedUserEmail();
-        if (teamService.isUserOwner(userId, projectUpdateRequestDto.getId())) {
+        if (!teamService.isUserOwner(userId, projectUpdateRequestDto.getId())) {
             throw new RuntimeException("Only the OWNER can update the project");
         }
 
@@ -83,7 +111,7 @@ public class ProjectService {
         logger.info("Finding project by id: {}", projectId);
 
         var userId = userService.getUserIdByLoggedUserEmail();
-        if (teamService.isUserOwner(userId, projectId)) {
+        if (!teamService.isUserOwner(userId, projectId)) {
             throw new RuntimeException("Only the OWNER can add team members to the project");
         }
 
@@ -94,7 +122,7 @@ public class ProjectService {
 
     public void updateTeamMember(UpdateTeamMemberRequestDTO requestDTO) {
         var userId = userService.getUserIdByLoggedUserEmail();
-        if (teamService.isUserOwner(userId, requestDTO.getProjectId())) {
+        if (!teamService.isUserOwner(userId, requestDTO.getProjectId())) {
             throw new RuntimeException("Only the OWNER can update team members");
         }
 
@@ -103,7 +131,7 @@ public class ProjectService {
 
     public void removeTeamMember(UUID memberId, UUID projectId) {
         var userId = userService.getUserIdByLoggedUserEmail();
-        if (teamService.isUserOwner(userId, projectId)) {
+        if (!teamService.isUserOwner(userId, projectId)) {
             throw new RuntimeException("Only the OWNER can remove team members");
         }
 
@@ -114,12 +142,24 @@ public class ProjectService {
         logger.info("Deleting project by id: {}", id);
 
         var userId = userService.getUserIdByLoggedUserEmail();
-        if (teamService.isUserOwner(userId, id)) {
+        if (!teamService.isUserOwner(userId, id)) {
             throw new RuntimeException("Only the OWNER can delete the project");
         }
 
-        projectRepository.deleteById(id);
-        // TODO: delete diagram data
+        try {
+            // Delete diagram data first (foreign key dependency)
+            logger.info("Deleting diagram data for project: {}", id);
+            diagramService.deleteDiagramByProjectId(id.toString());
+            
+            // Delete the project (this will cascade delete team members via JPA)
+            logger.info("Deleting project entity: {}", id);
+            projectRepository.deleteById(id);
+            
+            logger.info("Project and all associated data successfully deleted: {}", id);
+        } catch (Exception e) {
+            logger.error("Error deleting project: {}. Error: {}", id, e.getMessage());
+            throw new RuntimeException("Failed to delete project and associated data", e);
+        }
     }
 
     private Boolean isProjectExist(UUID id) {

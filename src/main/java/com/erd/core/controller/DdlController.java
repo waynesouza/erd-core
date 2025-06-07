@@ -1,8 +1,8 @@
 package com.erd.core.controller;
 
-import com.erd.core.dto.request.CreateDiagramRequestDTO;
-import com.erd.core.dto.response.DiagramDataResponseDTO;
-import com.erd.core.service.DiagramService;
+import com.erd.core.dto.request.ImportDdlRequestDTO;
+import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.service.DdlService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -17,27 +17,32 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 @CrossOrigin(origins = "http://localhost:4200", maxAge = 3600, allowCredentials="true")
 @RestController
-@RequestMapping("/api/diagram")
-public class DiagramController {
+@RequestMapping("/api/ddl")
+public class DdlController {
 
-    private final DiagramService diagramService;
+    private final DdlService ddlService;
 
-    public DiagramController(DiagramService diagramService) {
-        this.diagramService = diagramService;
+    public DdlController(DdlService ddlService) {
+        this.ddlService = ddlService;
     }
 
-    @PostMapping(consumes = APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/import", consumes = APPLICATION_JSON_VALUE)
     @PreAuthorize("@projectSecurityService.canUserEditProject(#requestDto.projectId, authentication.name)")
-    public ResponseEntity<Void> create(@RequestBody CreateDiagramRequestDTO requestDto) {
-        diagramService.createDiagram(requestDto);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Void> importDdl(@RequestBody ImportDdlRequestDTO requestDto) {
+        try {
+            ddlService.importDdl(requestDto);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
-    @GetMapping(value = "/{projectId}", produces = APPLICATION_JSON_VALUE)
+    @GetMapping(value = "/export/{projectId}", produces = APPLICATION_JSON_VALUE)
     @PreAuthorize("@projectSecurityService.isUserOwnerOrMember(#projectId, authentication.name)")
-    public ResponseEntity<DiagramDataResponseDTO> getDiagramByProjectId(@PathVariable String projectId) {
+    public ResponseEntity<ExportDdlResponseDTO> exportDdl(@PathVariable String projectId) {
         try {
-            return ResponseEntity.ok(diagramService.getDiagramByProjectId(projectId));
+            ExportDdlResponseDTO response = ddlService.exportDdl(projectId);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
         }

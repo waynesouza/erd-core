@@ -95,7 +95,7 @@ public class TeamService {
     }
 
     public boolean isUserOwner(UUID userId, UUID projectId) {
-        return !teamRepository.existsByUserIdAndProjectIdAndRole(userId, projectId, OWNER);
+        return teamRepository.existsByUserIdAndProjectIdAndRole(userId, projectId, OWNER);
     }
 
     public boolean canUserEdit(UUID userId, UUID projectId) {

@@ -2,6 +2,7 @@ package com.erd.core.service;
 
 import com.erd.core.dto.request.SignupRequestDTO;
 import com.erd.core.dto.response.UserResponseDTO;
+import com.erd.core.enumeration.RoleEnum;
 import com.erd.core.model.User;
 import com.erd.core.repository.UserRepository;
 import org.modelmapper.ModelMapper;
@@ -44,6 +45,7 @@ public class UserService implements UserDetailsService {
 
         var user = modelMapper.map(signupRequestDto, User.class);
         user.setPassword(passwordEncoder.encode(signupRequestDto.getPassword()));
+        user.setRole(RoleEnum.USER); // Set default role for new users
         userRepository.save(user);
     }
 

@@ -15,7 +15,7 @@ import java.util.Objects;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
-@CrossOrigin(origins = "http://localhost:8081", maxAge = 3600, allowCredentials = "true")
+@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600, allowCredentials = "true")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthenticationController {

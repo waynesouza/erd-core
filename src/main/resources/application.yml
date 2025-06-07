@@ -17,7 +17,7 @@ erd:
   app:
     jwt:
       secret: 1b4e92769871538c645e4145c964173046e015f55fb706a5c49b8f0c2c183daf
-      expiration: 300000
+      expiration: 3600000
       refresh-expiration: 2629746000
       cookie-name: erd-token
       refresh-cookie-name: erd-refresh-token

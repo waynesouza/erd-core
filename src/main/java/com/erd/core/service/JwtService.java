@@ -25,6 +25,7 @@ public class JwtService {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
 
+
     @Value("${erd.app.jwt.secret}")
     private String secret;
 
@@ -96,7 +97,13 @@ public class JwtService {
     }
 
     private ResponseCookie generateCookie(String name, String value, String path) {
-        return ResponseCookie.from(name, value).httpOnly(true).maxAge(24 * 60 * 60).path(path).build();
+        return ResponseCookie.from(name, value)
+                .httpOnly(true)
+                .secure(false) // Set to true in production with HTTPS
+                .sameSite("Lax")
+                .maxAge(24 * 60 * 60)
+                .path(path)
+                .build();
     }
 
     private String getCookieValueByName(HttpServletRequest request, String name) {

@@ -8,5 +8,7 @@ import java.util.Optional;
 public interface DiagramRepository extends MongoRepository<Diagram, String> {
 
     Optional<Diagram> findByProjectId(String projectId);
+    
+    void deleteByProjectId(String projectId);
 
 }

@@ -37,7 +37,7 @@ public class TeamService {
         teamRepository.save(new Team(user, project, OWNER));
     }
 
-    public void addTeamMember(TeamMemberRequestDTO teamMemberRequestDto, Project project) {
+    public UserProjectDetailsResponseDTO addTeamMember(TeamMemberRequestDTO teamMemberRequestDto, Project project) {
         logger.info("Adding team member to project: {}", project.getName());
 
         if (OWNER.equals(teamMemberRequestDto.getRoleProjectEnum())) {
@@ -47,10 +47,19 @@ public class TeamService {
         }
 
         User user = userService.findByEmail(teamMemberRequestDto.getUserEmail());
-        teamRepository.save(new Team(user, project, teamMemberRequestDto.getRoleProjectEnum()));
+        Team savedTeam = teamRepository.save(new Team(user, project, teamMemberRequestDto.getRoleProjectEnum()));
+        
+        // Return the user details with role
+        return new UserProjectDetailsResponseDTO(
+            savedTeam.getUser().getId(),
+            savedTeam.getUser().getEmail(),
+            savedTeam.getUser().getFirstName(),
+            savedTeam.getUser().getLastName(),
+            savedTeam.getRole()
+        );
     }
 
-    public void updateTeamMember(UpdateTeamMemberRequestDTO requestDTO) {
+    public UserProjectDetailsResponseDTO updateTeamMember(UpdateTeamMemberRequestDTO requestDTO) {
         logger.info("Updating team member: {}", requestDTO.getUserId());
 
         Team team = teamRepository.findByUserIdAndProjectId(requestDTO.getUserId(), requestDTO.getProjectId())
@@ -63,7 +72,16 @@ public class TeamService {
         }
 
         team.setRole(requestDTO.getRole());
-        teamRepository.save(team);
+        Team updatedTeam = teamRepository.save(team);
+        
+        // Return the updated user details with role
+        return new UserProjectDetailsResponseDTO(
+            updatedTeam.getUser().getId(),
+            updatedTeam.getUser().getEmail(),
+            updatedTeam.getUser().getFirstName(),
+            updatedTeam.getUser().getLastName(),
+            updatedTeam.getRole()
+        );
     }
 
     public void removeTeamMember(UUID userId, UUID projectId) {

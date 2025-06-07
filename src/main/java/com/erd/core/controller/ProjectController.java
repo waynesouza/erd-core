@@ -62,16 +62,16 @@ public class ProjectController {
 
     @PostMapping("/team-member")
     @PreAuthorize("@projectSecurityService.isProjectOwner(#teamMemberRequestDto.projectId.toString(), authentication.name)")
-    public ResponseEntity<Void> addTeamMember(@RequestBody TeamMemberRequestDTO teamMemberRequestDto) {
-        projectService.addTeamMember(teamMemberRequestDto);
-        return new ResponseEntity<>(HttpStatus.CREATED);
+    public ResponseEntity<UserProjectDetailsResponseDTO> addTeamMember(@RequestBody TeamMemberRequestDTO teamMemberRequestDto) {
+        UserProjectDetailsResponseDTO newMember = projectService.addTeamMember(teamMemberRequestDto);
+        return new ResponseEntity<>(newMember, HttpStatus.CREATED);
     }
 
     @PutMapping("/team-member")
     @PreAuthorize("@projectSecurityService.isProjectOwner(#requestDTO.projectId.toString(), authentication.name)")
-    public ResponseEntity<Void> updateTeamMember(@RequestBody UpdateTeamMemberRequestDTO requestDTO) {
-        projectService.updateTeamMember(requestDTO);
-        return new ResponseEntity<>(HttpStatus.OK);
+    public ResponseEntity<UserProjectDetailsResponseDTO> updateTeamMember(@RequestBody UpdateTeamMemberRequestDTO requestDTO) {
+        UserProjectDetailsResponseDTO updatedMember = projectService.updateTeamMember(requestDTO);
+        return new ResponseEntity<>(updatedMember, HttpStatus.OK);
     }
 
     @GetMapping("/{id}/members")
@@ -81,7 +81,7 @@ public class ProjectController {
         return new ResponseEntity<>(members, HttpStatus.OK);
     }
 
-    @PutMapping("/team-member/{memberId}/project/{projectId}")
+    @DeleteMapping("/team-member/{memberId}/project/{projectId}")
     @PreAuthorize("@projectSecurityService.isProjectOwner(#projectId.toString(), authentication.name)")
     public ResponseEntity<Void> removeTeamMember(@PathVariable UUID memberId, @PathVariable UUID projectId) {
         projectService.removeTeamMember(memberId, projectId);

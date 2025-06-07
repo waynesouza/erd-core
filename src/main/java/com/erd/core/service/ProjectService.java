@@ -6,6 +6,7 @@ import com.erd.core.dto.request.TeamMemberRequestDTO;
 import com.erd.core.dto.request.UpdateTeamMemberRequestDTO;
 import com.erd.core.dto.response.ProjectDetailsResponseDTO;
 import com.erd.core.dto.response.ProjectResponseDTO;
+import com.erd.core.dto.response.UserProjectDetailsResponseDTO;
 import com.erd.core.model.Project;
 import com.erd.core.repository.ProjectRepository;
 import org.modelmapper.ModelMapper;
@@ -106,7 +107,7 @@ public class ProjectService {
         return modelMapper.map(updatedProject, ProjectResponseDTO.class);
     }
 
-    public void addTeamMember(TeamMemberRequestDTO teamMemberRequestDto) {
+    public UserProjectDetailsResponseDTO addTeamMember(TeamMemberRequestDTO teamMemberRequestDto) {
         UUID projectId = teamMemberRequestDto.getProjectId();
         logger.info("Finding project by id: {}", projectId);
 
@@ -117,16 +118,17 @@ public class ProjectService {
 
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("Project not found for id: " + projectId));
-        teamService.addTeamMember(teamMemberRequestDto, project);
+        
+        return teamService.addTeamMember(teamMemberRequestDto, project);
     }
 
-    public void updateTeamMember(UpdateTeamMemberRequestDTO requestDTO) {
+    public UserProjectDetailsResponseDTO updateTeamMember(UpdateTeamMemberRequestDTO requestDTO) {
         var userId = userService.getUserIdByLoggedUserEmail();
         if (!teamService.isUserOwner(userId, requestDTO.getProjectId())) {
             throw new RuntimeException("Only the OWNER can update team members");
         }
 
-        teamService.updateTeamMember(requestDTO);
+        return teamService.updateTeamMember(requestDTO);
     }
 
     public void removeTeamMember(UUID memberId, UUID projectId) {

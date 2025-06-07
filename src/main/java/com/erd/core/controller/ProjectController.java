@@ -6,9 +6,12 @@ import com.erd.core.dto.request.TeamMemberRequestDTO;
 import com.erd.core.dto.request.UpdateTeamMemberRequestDTO;
 import com.erd.core.dto.response.ProjectDetailsResponseDTO;
 import com.erd.core.dto.response.ProjectResponseDTO;
+import com.erd.core.dto.response.UserProjectDetailsResponseDTO;
 import com.erd.core.service.ProjectService;
+import com.erd.core.service.TeamService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,15 +25,17 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-@CrossOrigin(origins = "http://localhost:8081", maxAge = 3600, allowCredentials="true")
+@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600, allowCredentials="true")
 @RestController
 @RequestMapping("/api/project")
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final TeamService teamService;
 
-    public ProjectController(ProjectService projectService) {
+    public ProjectController(ProjectService projectService, TeamService teamService) {
         this.projectService = projectService;
+        this.teamService = teamService;
     }
 
     @PostMapping
@@ -44,34 +49,47 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@projectSecurityService.isUserOwnerOrMember(#id.toString(), authentication.name)")
     public ResponseEntity<ProjectDetailsResponseDTO> getProjectDetailsById(@PathVariable(name = "id") UUID id) {
         return new ResponseEntity<>(projectService.getProjectDetailsById(id), HttpStatus.OK);
     }
 
     @PutMapping
+    @PreAuthorize("@projectSecurityService.isProjectOwner(#projectUpdateRequestDto.id.toString(), authentication.name)")
     public ResponseEntity<ProjectResponseDTO> update(@RequestBody ProjectUpdateRequestDTO projectUpdateRequestDto) {
         return new ResponseEntity<>(projectService.update(projectUpdateRequestDto), HttpStatus.OK);
     }
 
     @PostMapping("/team-member")
+    @PreAuthorize("@projectSecurityService.isProjectOwner(#teamMemberRequestDto.projectId.toString(), authentication.name)")
     public ResponseEntity<Void> addTeamMember(@RequestBody TeamMemberRequestDTO teamMemberRequestDto) {
         projectService.addTeamMember(teamMemberRequestDto);
         return new ResponseEntity<>(HttpStatus.CREATED);
     }
 
     @PutMapping("/team-member")
+    @PreAuthorize("@projectSecurityService.isProjectOwner(#requestDTO.projectId.toString(), authentication.name)")
     public ResponseEntity<Void> updateTeamMember(@RequestBody UpdateTeamMemberRequestDTO requestDTO) {
         projectService.updateTeamMember(requestDTO);
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
+    @GetMapping("/{id}/members")
+    @PreAuthorize("@projectSecurityService.isUserOwnerOrMember(#id.toString(), authentication.name)")
+    public ResponseEntity<List<UserProjectDetailsResponseDTO>> getProjectMembers(@PathVariable(name = "id") UUID id) {
+        List<UserProjectDetailsResponseDTO> members = teamService.findByProjectId(id);
+        return new ResponseEntity<>(members, HttpStatus.OK);
+    }
+
     @PutMapping("/team-member/{memberId}/project/{projectId}")
+    @PreAuthorize("@projectSecurityService.isProjectOwner(#projectId.toString(), authentication.name)")
     public ResponseEntity<Void> removeTeamMember(@PathVariable UUID memberId, @PathVariable UUID projectId) {
         projectService.removeTeamMember(memberId, projectId);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@projectSecurityService.isProjectOwner(#id.toString(), authentication.name)")
     public ResponseEntity<Void> deleteById(@PathVariable(name = "id") UUID id) {
         projectService.deleteById(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);

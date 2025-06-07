@@ -15,13 +15,13 @@ import java.util.UUID;
 @Repository
 public interface TeamRepository extends JpaRepository<Team, UUID> {
 
-    @Query("SELECT new com.erd.core.dto.response.UserProjectDetailsResponseDTO(t.user.id, t.user.email, t.role) FROM Team t WHERE t.project.id = :projectId")
+    @Query("SELECT new com.erd.core.dto.response.UserProjectDetailsResponseDTO(t.user.id, t.user.email, t.user.firstName, t.user.lastName, t.role) FROM Team t WHERE t.project.id = :projectId")
     List<UserProjectDetailsResponseDTO> findByProjectId(UUID projectId);
 
-    @Query("SELECT new com.erd.core.dto.response.UserProjectDetailsResponseDTO(t.user.id, t.user.email, t.role) FROM Team t WHERE t.project.id = :projectId AND t.role = :role")
+    @Query("SELECT new com.erd.core.dto.response.UserProjectDetailsResponseDTO(t.user.id, t.user.email, t.user.firstName, t.user.lastName, t.role) FROM Team t WHERE t.project.id = :projectId AND t.role = :role")
     List<UserProjectDetailsResponseDTO> findByProjectIdAndRole(@Param("projectId") UUID projectId, @Param("role") RoleProjectEnum role);
 
-    @Query("SELECT new com.erd.core.dto.response.UserProjectDetailsResponseDTO(t.user.id, t.user.email, t.role) FROM Team t WHERE t.project.id = :projectId AND (LOWER(t.user.firstName) LIKE LOWER(CONCAT('%', :name, '%')) OR LOWER(t.user.lastName) LIKE LOWER(CONCAT('%', :name, '%')))")
+    @Query("SELECT new com.erd.core.dto.response.UserProjectDetailsResponseDTO(t.user.id, t.user.email, t.user.firstName, t.user.lastName, t.role) FROM Team t WHERE t.project.id = :projectId AND (LOWER(t.user.firstName) LIKE LOWER(CONCAT('%', :name, '%')) OR LOWER(t.user.lastName) LIKE LOWER(CONCAT('%', :name, '%')))")
     List<UserProjectDetailsResponseDTO> findByProjectIdAndNameContaining(@Param("projectId") UUID projectId, @Param("name") String name);
 
     @Query("SELECT t FROM Team t WHERE t.user.id = :userId AND t.project.id = :projectId")

@@ -50,4 +50,15 @@ public class DiagramService {
         logger.info("Diagram saved/updated successfully for projectId: {}", projectId);
     }
 
+    public void deleteDiagramByProjectId(String projectId) {
+        logger.info("Deleting diagram data for projectId: {}", projectId);
+        try {
+            diagramRepository.deleteByProjectId(projectId);
+            logger.info("Diagram data successfully deleted for projectId: {}", projectId);
+        } catch (Exception e) {
+            logger.error("Error deleting diagram data for projectId: {}. Error: {}", projectId, e.getMessage());
+            throw new RuntimeException("Failed to delete diagram data for project: " + projectId, e);
+        }
+    }
+
 }

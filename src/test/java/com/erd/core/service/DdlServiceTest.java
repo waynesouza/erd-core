@@ -16,14 +16,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DdlServiceTest {
@@ -38,14 +43,12 @@ class DdlServiceTest {
     private DdlService ddlService;
 
     private DiagramDataResponseDTO sampleDiagramData;
-    private String sampleNodeDataJson;
-    private String sampleLinkDataJson;
 
     @BeforeEach
     void setUp() {
         // Setup sample data for tests
-        sampleNodeDataJson = "[{\"id\":\"bd8e59b4-e4fa-4108-9451-e01a5ca747b4\",\"key\":\"table1\",\"items\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"pk\":true,\"fk\":false,\"unique\":false,\"notNull\":true,\"autoIncrement\":true,\"defaultValue\":\"\"},{\"name\":\"table2_id\",\"type\":\"INTEGER\",\"pk\":false,\"fk\":true,\"unique\":false,\"notNull\":true,\"autoIncrement\":false,\"defaultValue\":\"\"}],\"location\":{\"x\":\"-338.81008236970797\",\"y\":\"53.7535226836556\"}},{\"id\":\"696db9d7-debc-42d3-963c-b30334054664\",\"key\":\"table2\",\"items\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"pk\":true,\"fk\":false,\"unique\":false,\"notNull\":true,\"autoIncrement\":true,\"defaultValue\":\"\"}],\"location\":{\"x\":\"156.0454087970379\",\"y\":\"36.19404426222769\"}}]";
-        sampleLinkDataJson = "[{\"from\":\"table1\",\"to\":\"table2\",\"text\":\"N:1\",\"toText\":\"1\"}]";
+        String sampleNodeDataJson = "[{\"id\":\"bd8e59b4-e4fa-4108-9451-e01a5ca747b4\",\"key\":\"table1\",\"items\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"pk\":true,\"fk\":false,\"unique\":false,\"notNull\":true,\"autoIncrement\":true,\"defaultValue\":\"\"},{\"name\":\"table2_id\",\"type\":\"INTEGER\",\"pk\":false,\"fk\":true,\"unique\":false,\"notNull\":true,\"autoIncrement\":false,\"defaultValue\":\"\"}],\"location\":{\"x\":\"-338.81008236970797\",\"y\":\"53.7535226836556\"}},{\"id\":\"696db9d7-debc-42d3-963c-b30334054664\",\"key\":\"table2\",\"items\":[{\"name\":\"id\",\"type\":\"INTEGER\",\"pk\":true,\"fk\":false,\"unique\":false,\"notNull\":true,\"autoIncrement\":true,\"defaultValue\":\"\"}],\"location\":{\"x\":\"156.0454087970379\",\"y\":\"36.19404426222769\"}}]";
+        String sampleLinkDataJson = "[{\"from\":\"table1\",\"to\":\"table2\",\"text\":\"N:1\",\"toText\":\"1\"}]";
 
         sampleDiagramData = new DiagramDataResponseDTO();
         sampleDiagramData.setNodeData(sampleNodeDataJson);
@@ -57,7 +60,7 @@ class DdlServiceTest {
     void testExportDdl_Success() throws Exception {
         // Given
         String projectId = "test-project";
-
+        
         // Create expected NodeDataDTO list
         List<NodeDataDTO> nodeDataList = createSampleNodeDataList();
         List<LinkDataDTO> linkDataList = createSampleLinkDataList();
@@ -221,27 +224,27 @@ class DdlServiceTest {
     void testExportDdlWithNullStringsButPopulatedArrays() {
         // Given
         String projectId = "test-project";
-
+        
         // Create mock diagram data with populated arrays but null strings
         DiagramDataResponseDTO diagramData = new DiagramDataResponseDTO();
-
+        
         // Populated arrays (the way data actually comes from the service)
         List<NodeDataDTO> nodeDataList = createMockNodeDataList();
         List<LinkDataDTO> linkDataList = createMockLinkDataList();
-
+        
         diagramData.setNodeDataArray(nodeDataList);
         diagramData.setLinkDataArray(linkDataList);
-
+        
         // Null strings (simulating the actual problem)
         diagramData.setNodeData(null);
         diagramData.setLinkData(null);
         diagramData.setProjectId(projectId);
-
+        
         when(diagramService.getDiagramByProjectId(projectId)).thenReturn(diagramData);
-
+        
         // When
         ExportDdlResponseDTO result = ddlService.exportDdl(projectId);
-
+        
         // Then
         assertNotNull(result);
         assertNotNull(result.getDdlContent());
@@ -277,7 +280,7 @@ class DdlServiceTest {
         table1FkId.setUnique(false);
         table1FkId.setDefaultValue("");
 
-        table1.setItems(Arrays.asList(table1Id, table1FkId));
+        table1.setItems(List.of(table1Id, table1FkId));
 
         LocationDTO table1Location = new LocationDTO();
         table1Location.setX("-338.81008236970797");
@@ -299,14 +302,14 @@ class DdlServiceTest {
         table2Id.setUnique(false);
         table2Id.setDefaultValue("");
 
-        table2.setItems(Arrays.asList(table2Id));
+        table2.setItems(List.of(table2Id));
 
         LocationDTO table2Location = new LocationDTO();
         table2Location.setX("156.0454087970379");
         table2Location.setY("36.19404426222769");
         table2.setLocation(table2Location);
 
-        return Arrays.asList(table1, table2);
+        return List.of(table1, table2);
     }
 
     private List<LinkDataDTO> createSampleLinkDataList() {
@@ -316,19 +319,19 @@ class DdlServiceTest {
         linkData.setText("N:1");
         linkData.setToText("1");
 
-        return Arrays.asList(linkData);
+        return List.of(linkData);
     }
 
     private List<NodeDataDTO> createMockNodeDataList() {
         List<NodeDataDTO> nodeDataList = new ArrayList<>();
-
+        
         // Create users table
         NodeDataDTO usersTable = new NodeDataDTO();
         usersTable.setId(UUID.randomUUID());
         usersTable.setKey("users");
-
+        
         List<ItemDTO> usersItems = new ArrayList<>();
-
+        
         ItemDTO idItem = new ItemDTO();
         idItem.setName("id");
         idItem.setType("INTEGER");
@@ -336,23 +339,23 @@ class DdlServiceTest {
         idItem.setAutoIncrement(true);
         idItem.setNotNull(true);
         usersItems.add(idItem);
-
+        
         ItemDTO nameItem = new ItemDTO();
         nameItem.setName("name");
         nameItem.setType("VARCHAR");
         nameItem.setNotNull(true);
         usersItems.add(nameItem);
-
+        
         usersTable.setItems(usersItems);
         nodeDataList.add(usersTable);
-
+        
         // Create orders table
         NodeDataDTO ordersTable = new NodeDataDTO();
         ordersTable.setId(UUID.randomUUID());
         ordersTable.setKey("orders");
-
+        
         List<ItemDTO> ordersItems = new ArrayList<>();
-
+        
         ItemDTO orderIdItem = new ItemDTO();
         orderIdItem.setName("id");
         orderIdItem.setType("INTEGER");
@@ -360,31 +363,32 @@ class DdlServiceTest {
         orderIdItem.setAutoIncrement(true);
         orderIdItem.setNotNull(true);
         ordersItems.add(orderIdItem);
-
+        
         ItemDTO userIdItem = new ItemDTO();
         userIdItem.setName("user_id");
         userIdItem.setType("INTEGER");
         userIdItem.setFk(true);
         userIdItem.setNotNull(true);
         ordersItems.add(userIdItem);
-
+        
         ordersTable.setItems(ordersItems);
         nodeDataList.add(ordersTable);
-
+        
         return nodeDataList;
     }
-
+    
     private List<LinkDataDTO> createMockLinkDataList() {
         List<LinkDataDTO> linkDataList = new ArrayList<>();
-
+        
         LinkDataDTO linkData = new LinkDataDTO();
         linkData.setFrom("orders");
         linkData.setTo("users");
         linkData.setText("N:1");
         linkData.setToText("1");
-
+        
         linkDataList.add(linkData);
-
+        
         return linkDataList;
     }
+
 }

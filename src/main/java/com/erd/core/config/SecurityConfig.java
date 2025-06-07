@@ -32,7 +32,16 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authenticationEntryPointJwt))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/user/register", "/api/user").permitAll()
+                        .requestMatchers("/api/send/**", "/ws/**").permitAll() // WebSocket endpoints
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/project/**").hasAnyAuthority("USER", "ADMIN")
+                        .requestMatchers("/api/diagram/**").hasAnyAuthority("USER", "ADMIN")
+                        .requestMatchers("/api/ddl/**").hasAnyAuthority("USER", "ADMIN")
+                        .anyRequest().authenticated()
+                )
                 .authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class).build();
     }

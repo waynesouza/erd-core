@@ -41,8 +41,25 @@ public class ProjectService {
     public ProjectResponseDTO create(ProjectCreateRequestDTO projectCreateRequestDto) {
         logger.info("Saving project data");
         Project createdProject = projectRepository.save(toEntity(projectCreateRequestDto));
+        
+        // Create team with project owner
         teamService.create(projectCreateRequestDto.getUserEmail(), createdProject);
+        
+        // Create empty diagram
+        logger.info("Creating empty diagram for project: {}", createdProject.getId());
+        createEmptyDiagram(createdProject.getId().toString());
+        
         return modelMapper.map(createdProject, ProjectResponseDTO.class);
+    }
+    
+    private void createEmptyDiagram(String projectId) {
+        try {
+            diagramService.saveOrUpdateDiagram(projectId, "[]", "[]");
+            logger.info("Empty diagram created successfully for project: {}", projectId);
+        } catch (Exception e) {
+            logger.error("Failed to create empty diagram for project: {}. Error: {}", projectId, e.getMessage());
+            // Don't throw exception to avoid failing project creation if diagram creation fails
+        }
     }
 
     /**

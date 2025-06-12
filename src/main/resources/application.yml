@@ -21,3 +21,7 @@ erd:
       refresh-expiration: 2629746000
       cookie-name: erd-token
       refresh-cookie-name: erd-refresh-token
+
+emailService:
+  baseUrl: http://localhost:8081/api/v1
+  timeout: 5000

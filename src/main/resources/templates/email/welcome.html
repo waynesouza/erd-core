@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to ERD Collaborative Modeler</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            text-align: center;
+            color: white;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 300;
+        }
+        .content {
+            background: white;
+            padding: 40px 30px;
+        }
+        .welcome-text {
+            font-size: 18px;
+            margin-bottom: 25px;
+            color: #2c3e50;
+        }
+        .features {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+        .features h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        .feature-list li:before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 35px;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-size: 14px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        .highlight {
+            color: #667eea;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to ERD Collaborative Modeler</h1>
+        </div>
+        
+        <div class="content">
+            <div class="welcome-text">
+                Hello <span class="highlight">{{username}}</span>,
+            </div>
+            
+            <p>Welcome to <strong>ERD Collaborative Modeler</strong>! We're excited to have you join our community of database designers and developers.</p>
+            
+            <p>Your account has been successfully created with the email: <span class="highlight">{{email}}</span></p>
+            
+            <div class="features">
+                <h3>🚀 What You Can Do Now:</h3>
+                <ul class="feature-list">
+                    <li>Create and design Entity Relationship Diagrams</li>
+                    <li>Collaborate in real-time with your team</li>
+                    <li>Export your diagrams in multiple formats</li>
+                    <li>Manage database projects efficiently</li>
+                    <li>Share diagrams with stakeholders</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="{{appUrl}}" class="cta-button">Start Creating Diagrams</a>
+            </div>
+            
+            <p style="margin-top: 30px; font-size: 14px; color: #6c757d;">
+                If you have any questions or need assistance, feel free to reach out to our support team. 
+                We're here to help you make the most of ERD Collaborative Modeler!
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p>
+                Best regards,<br>
+                <strong>ERD Collaborative Modeler Team</strong>
+            </p>
+            <p style="margin-top: 15px; font-size: 12px;">
+                This is an automated message. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html> 

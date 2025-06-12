@@ -25,11 +25,16 @@ public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
-    public UserService(UserRepository userRepository, ModelMapper modelMapper, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, 
+                      ModelMapper modelMapper, 
+                      PasswordEncoder passwordEncoder,
+                      EmailService emailService) {
         this.userRepository = userRepository;
         this.modelMapper = modelMapper;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
 
     @Override
@@ -46,7 +51,21 @@ public class UserService implements UserDetailsService {
         var user = modelMapper.map(signupRequestDto, User.class);
         user.setPassword(passwordEncoder.encode(signupRequestDto.getPassword()));
         user.setRole(RoleEnum.USER); // Set default role for new users
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        
+        // Send welcome email asynchronously
+        emailService.sendWelcomeEmail(savedUser);
+    }
+
+
+
+    public void sendPasswordResetEmail(String email, String resetToken) {
+        User user = findByEmail(email);
+        emailService.sendPasswordResetEmail(email, user.getFirstName(), resetToken);
+    }
+
+    public void sendNotificationEmail(String email, String title, String message, String actionText, String actionUrl) {
+        emailService.sendNotificationEmail(email, title, message, actionText, actionUrl);
     }
 
     public User findByEmail(String email) {

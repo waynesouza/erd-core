@@ -3,6 +3,7 @@ package com.erd.core.service;
 import com.erd.core.dto.collaboration.EntityLockDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -99,7 +100,7 @@ public class CollaborationService {
         entityLocks.entrySet().removeIf(entry -> entry.getValue().getProjectId().equals(projectId));
     }
 
-    // Auto-cleanup stale locks (older than 30 minutes)
+    @Scheduled(fixedRate = 600000) // Run every 10 minutes
     public void cleanupStaleLocks() {
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 

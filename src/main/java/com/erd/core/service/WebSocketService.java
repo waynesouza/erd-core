@@ -16,7 +16,7 @@ import java.util.Optional;
 @Service
 public class WebSocketService {
 
-    private static final String TOPIC = "/topic/receive";
+    private static final String TOPIC_PREFIX = "/topic/diagram/";
     private static final Logger logger = LoggerFactory.getLogger(WebSocketService.class);
 
     private final DiagramRepository diagramRepository;
@@ -55,10 +55,11 @@ public class WebSocketService {
     }
 
     private void sendToTopic(DiagramDataResponseDTO savedDto) {
-        logger.info("Sending message to topic: {}", TOPIC);
+        String topic = TOPIC_PREFIX + savedDto.getProjectId();
+        logger.info("Sending message to topic: {}", topic);
         try {
-            messagingTemplate.convertAndSend(TOPIC, savedDto);
-            logger.info("Message re-sent with data: {}", diagramMapper.convertToSting(savedDto));
+            messagingTemplate.convertAndSend(topic, savedDto);
+            logger.info("Message sent to project-scoped topic: {}", topic);
         } catch (MessagingException e) {
             logger.error("Error sending message", e);
         }

@@ -150,7 +150,7 @@ public class CollaborationController {
             logger.info("Sending WebSocket notification: type={}, entityId={}, projectId={}", 
                        type, lock.getEntityId(), lock.getProjectId());
 
-            messagingTemplate.convertAndSend("/topic/collaboration", message);
+            messagingTemplate.convertAndSend("/topic/collaboration/" + lock.getProjectId(), message);
         } catch (Exception e) {
             logger.error("Error sending lock notification", e);
         }
@@ -167,10 +167,10 @@ public class CollaborationController {
             message.put("projectId", lock.getProjectId());
             message.put("userEmail", lock.getUserEmail());
 
-            logger.info("Sending WebSocket notification: type={}, entityId={}, projectId={}", 
+            logger.info("Sending WebSocket notification: type={}, entityId={}, projectId={}",
                        type, lock.getEntityId(), lock.getProjectId());
 
-            messagingTemplate.convertAndSend("/topic/collaboration", message);
+            messagingTemplate.convertAndSend("/topic/collaboration/" + lock.getProjectId(), message);
         } catch (Exception e) {
             logger.error("Error sending unlock notification", e);
         }

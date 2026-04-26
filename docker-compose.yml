@@ -47,9 +47,20 @@ services:
     ports:
       - ${SPRING_LOCAL_PORT}:${SPRING_DOCKER_PORT}
     volumes:
-      - .m2:/root/.m2
+      - maven_cache:/root/.m2
     stdin_open: true
     tty: true
 
+  erd-client:
+    image: erd-client
+    build: ../erd-client
+    depends_on:
+      - erd-core
+    restart: always
+    env_file: .env
+    ports:
+      - ${CLIENT_LOCAL_PORT}:${CLIENT_DOCKER_PORT}
+
 volumes:
   db:
+  maven_cache:

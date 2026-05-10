@@ -4,7 +4,6 @@ import com.erd.core.model.User;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -16,7 +15,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.WebUtils;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.Objects;
 
@@ -67,12 +66,12 @@ public class JwtService {
     }
 
     public String getEmailFromToken(String token) {
-        return Jwts.parserBuilder().setSigningKey(getKey()).build().parseClaimsJws(token).getBody().getSubject();
+        return Jwts.parser().verifyWith(getKey()).build().parseSignedClaims(token).getPayload().getSubject();
     }
 
     public Boolean isTokenValid(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(getKey()).build().parse(token);
+            Jwts.parser().verifyWith(getKey()).build().parseSignedClaims(token);
             return Boolean.TRUE;
         } catch (MalformedJwtException e) {
             logger.error("Invalid JWT token: {}", e.getMessage());
@@ -89,10 +88,10 @@ public class JwtService {
 
     private String createTokenFromEmail(String email) {
         return Jwts.builder()
-                .setSubject(email)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date((new Date()).getTime() + expiration))
-                .signWith(getKey(), SignatureAlgorithm.HS256)
+                .subject(email)
+                .issuedAt(new Date())
+                .expiration(new Date((new Date()).getTime() + expiration))
+                .signWith(getKey())
                 .compact();
     }
 
@@ -111,7 +110,7 @@ public class JwtService {
         return Objects.nonNull(cookie) ? cookie.getValue() : null;
     }
 
-    private Key getKey() {
+    private SecretKey getKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 

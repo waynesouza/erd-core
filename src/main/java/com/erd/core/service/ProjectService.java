@@ -65,8 +65,7 @@ public class ProjectService {
         List<Project> projects = projectRepository.findByUserEmail(email);
 
         if (projects.isEmpty()) {
-            logger.warn("No projects found for user with email: {}", email);
-            throw new RuntimeException("No projects found for user with email: " + email);
+            return List.of();
         }
 
         return projects.stream()

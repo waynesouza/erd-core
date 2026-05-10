@@ -37,3 +37,6 @@ build/
 
 ### Maven ###
 .m2
+
+### Claude Code ###
+.claude/

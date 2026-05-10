@@ -100,12 +100,12 @@ public class CollaborationService {
         entityLocks.entrySet().removeIf(entry -> entry.getValue().getProjectId().equals(projectId));
     }
 
-    @Scheduled(fixedRate = 600000) // Run every 10 minutes
+    @Scheduled(fixedRate = 120000) // Run every 2 minutes
     public void cleanupStaleLocks() {
-        LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
+        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
 
         entityLocks.entrySet().removeIf(entry -> {
-            boolean isStale = entry.getValue().getLockedAt().isBefore(thirtyMinutesAgo);
+            boolean isStale = entry.getValue().getLockedAt().isBefore(fiveMinutesAgo);
             if (isStale) {
                 logger.info("Removing stale lock for entity {} locked by {}", 
                            entry.getKey(), entry.getValue().getUserEmail());

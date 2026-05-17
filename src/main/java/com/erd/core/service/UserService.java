@@ -66,7 +66,7 @@ public class UserService implements UserDetailsService {
         return modelMapper.map(findByEmail(email), UserResponseDTO.class).getId();
     }
 
-    private String getLoggedUserEmail() {
+    public String getLoggedUserEmail() {
         logger.info("Getting logged user email");
         var principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof User user) {

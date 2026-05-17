@@ -13,6 +13,7 @@ import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,10 +39,11 @@ public class ProjectService {
         this.modelMapper = modelMapper;
     }
 
+    @Transactional
     public ProjectResponseDTO create(ProjectCreateRequestDTO projectCreateRequestDto) {
         logger.info("Saving project data");
         Project createdProject = projectRepository.save(toEntity(projectCreateRequestDto));
-        teamService.create(projectCreateRequestDto.getUserEmail(), createdProject);
+        teamService.create(userService.getLoggedUserEmail(), createdProject);
         return modelMapper.map(createdProject, ProjectResponseDTO.class);
     }
 

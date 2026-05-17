@@ -145,30 +145,36 @@ public class DdlService {
     }
     
     private String generateForeignKeyStatement(LinkDataDTO linkData, List<NodeDataDTO> nodeDataList) {
-        // Find foreign key column in the "from" table
         NodeDataDTO fromTable = nodeDataList.stream()
             .filter(node -> node.getKey().equals(linkData.getFrom()))
             .findFirst()
             .orElseThrow(() -> new RuntimeException("Table not found: " + linkData.getFrom()));
-            
-        String fkColumn = fromTable.getItems().stream()
-            .filter(item -> Boolean.TRUE.equals(item.getFk()))
-            .map(ItemDTO::getName)
-            .findFirst()
-            .orElse(linkData.getTo() + "_id");
-            
-        // Find primary key column in the "to" table
+
+        // Prefer the FK column stored during import; fall back to heuristic for manually-created links
+        String fkColumn;
+        if (linkData.getFromColumn() != null && !linkData.getFromColumn().isEmpty()) {
+            fkColumn = linkData.getFromColumn();
+        } else {
+            String targetSingular = linkData.getTo().toLowerCase().replaceAll("s$", "");
+            fkColumn = fromTable.getItems().stream()
+                .filter(item -> Boolean.TRUE.equals(item.getFk()) &&
+                        item.getName().toLowerCase().contains(targetSingular))
+                .map(ItemDTO::getName)
+                .findFirst()
+                .orElse(linkData.getTo() + "_id");
+        }
+
         NodeDataDTO toTable = nodeDataList.stream()
             .filter(node -> node.getKey().equals(linkData.getTo()))
             .findFirst()
             .orElseThrow(() -> new RuntimeException("Table not found: " + linkData.getTo()));
-            
+
         String pkColumn = toTable.getItems().stream()
             .filter(item -> Boolean.TRUE.equals(item.getPk()))
             .map(ItemDTO::getName)
             .findFirst()
             .orElse("id");
-        
+
         return String.format("ALTER TABLE %s ADD CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s);",
             linkData.getFrom(), linkData.getFrom(), linkData.getTo(), fkColumn, linkData.getTo(), pkColumn);
     }
@@ -195,10 +201,9 @@ public class DdlService {
     
     private List<NodeDataDTO> parseDdlToNodeData(String ddlContent) {
         List<NodeDataDTO> nodeDataList = new ArrayList<>();
-        
-        // Pattern to match CREATE TABLE statements
+
         Pattern tablePattern = Pattern.compile(
-            "CREATE\\s+TABLE\\s+(\\w+)\\s*\\((.*?)\\);",
+            "CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)\\s*\\((.*?)\\);",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL
         );
         
@@ -242,9 +247,9 @@ public class DdlService {
             }
         }
         
-        // Parse column definitions
-        String[] lines = tableDefinition.split(",");
-        
+        // Parse column definitions (split respecting parentheses so DECIMAL(10,2) stays intact)
+        List<String> lines = splitRespectingParentheses(tableDefinition);
+
         for (String line : lines) {
             line = line.trim();
             
@@ -284,7 +289,8 @@ public class DdlService {
         ItemDTO item = new ItemDTO();
         item.setName(columnName);
         item.setType(mapMySqlTypeToGeneric(columnType));
-        item.setPk(primaryKeys.contains(columnName));
+        boolean hasInlinePk = constraints.contains("PRIMARY KEY");
+        item.setPk(primaryKeys.contains(columnName) || hasInlinePk);
         item.setFk(columnName.toLowerCase().endsWith("_id") && !item.getPk());
         item.setNotNull(constraints.contains("NOT NULL"));
         item.setAutoIncrement(constraints.contains("AUTO_INCREMENT"));
@@ -321,43 +327,60 @@ public class DdlService {
         };
     }
     
+    private List<String> splitRespectingParentheses(String input) {
+        List<String> parts = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')') depth--;
+            else if (c == ',' && depth == 0) {
+                parts.add(input.substring(start, i));
+                start = i + 1;
+            }
+        }
+        parts.add(input.substring(start));
+        return parts;
+    }
+
     private List<LinkDataDTO> parseDdlToLinkData(String ddlContent, List<NodeDataDTO> nodeDataList) {
         List<LinkDataDTO> linkDataList = new ArrayList<>();
         Map<String, String> tableMap = new HashMap<>();
-        
-        // Create a map for quick table lookup
+
         for (NodeDataDTO nodeData : nodeDataList) {
             tableMap.put(nodeData.getKey(), nodeData.getKey());
         }
-        
-        // Pattern to match FOREIGN KEY constraints
+
+        Pattern tablePattern = Pattern.compile(
+            "CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)\\s*\\((.*?)\\);",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
         Pattern fkPattern = Pattern.compile(
             "FOREIGN\\s+KEY\\s*\\(([^)]+)\\)\\s+REFERENCES\\s+(\\w+)\\s*\\(([^)]+)\\)",
             Pattern.CASE_INSENSITIVE
         );
-        
-        Matcher fkMatcher = fkPattern.matcher(ddlContent);
-        
-        while (fkMatcher.find()) {
-            String fkColumn = fkMatcher.group(1).trim();
-            String referencedTable = fkMatcher.group(2).trim();
-            String referencedColumn = fkMatcher.group(3).trim();
-            
-            // Find the table that contains this foreign key
-            for (NodeDataDTO nodeData : nodeDataList) {
-                boolean hasFkColumn = nodeData.getItems().stream()
-                    .anyMatch(item -> item.getName().equals(fkColumn));
-                    
-                if (hasFkColumn && tableMap.containsKey(referencedTable)) {
-                    LinkDataDTO linkData = new LinkDataDTO();
-                    linkData.setFrom(nodeData.getKey());
-                    linkData.setTo(referencedTable);
-                    linkData.setText("N:1");
-                    linkData.setToText("1");
 
-                    linkDataList.add(linkData);
-                    break;
-                }
+        Matcher tableMatcher = tablePattern.matcher(ddlContent);
+        while (tableMatcher.find()) {
+            String sourceTable = tableMatcher.group(1).trim();
+            String tableBody   = tableMatcher.group(2);
+
+            if (!tableMap.containsKey(sourceTable)) continue;
+
+            Matcher fkMatcher = fkPattern.matcher(tableBody);
+            while (fkMatcher.find()) {
+                String fkColumnName  = fkMatcher.group(1).trim();
+                String referencedTable = fkMatcher.group(2).trim();
+                if (!tableMap.containsKey(referencedTable)) continue;
+
+                LinkDataDTO linkData = new LinkDataDTO();
+                linkData.setFrom(sourceTable);
+                linkData.setTo(referencedTable);
+                linkData.setText("N:1");
+                linkData.setToText(1);
+                linkData.setFromColumn(fkColumnName);
+                linkDataList.add(linkData);
             }
         }
 

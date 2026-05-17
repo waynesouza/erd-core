@@ -14,7 +14,10 @@ public class LinkDataDTO {
     private String text;
 
     @JsonProperty
-    private String toText;
+    private Integer toText;
+
+    @JsonProperty
+    private String fromColumn;
 
     public String getFrom() {
         return from;
@@ -40,11 +43,19 @@ public class LinkDataDTO {
         this.text = text;
     }
 
-    public String getToText() {
+    public Integer getToText() {
         return toText;
     }
 
-    public void setToText(String toText) {
+    public void setToText(Integer toText) {
         this.toText = toText;
+    }
+
+    public String getFromColumn() {
+        return fromColumn;
+    }
+
+    public void setFromColumn(String fromColumn) {
+        this.fromColumn = fromColumn;
     }
 }

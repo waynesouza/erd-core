@@ -58,4 +58,5 @@ public class LinkDataDTO {
     public void setFromColumn(String fromColumn) {
         this.fromColumn = fromColumn;
     }
+
 }

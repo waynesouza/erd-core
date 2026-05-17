@@ -104,10 +104,14 @@ public class ProjectService {
         }
 
         logger.info("Updating project data");
-        Project updatedProject = projectRepository.save(modelMapper.map(projectUpdateRequestDto, Project.class));
-        return modelMapper.map(updatedProject, ProjectResponseDTO.class);
+        Project project = projectRepository.findById(projectUpdateRequestDto.getId())
+                .orElseThrow(() -> new RuntimeException("Project not found for id: " + projectUpdateRequestDto.getId()));
+        project.setName(projectUpdateRequestDto.getName());
+        project.setDescription(projectUpdateRequestDto.getDescription());
+        return modelMapper.map(projectRepository.save(project), ProjectResponseDTO.class);
     }
 
+    @Transactional
     public UserProjectDetailsResponseDTO addTeamMember(TeamMemberRequestDTO teamMemberRequestDto) {
         UUID projectId = teamMemberRequestDto.getProjectId();
         logger.info("Finding project by id: {}", projectId);

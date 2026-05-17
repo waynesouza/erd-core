@@ -1,16 +1,13 @@
 package com.erd.core.service;
 
 import com.erd.core.enumeration.RoleProjectEnum;
-import com.erd.core.model.Project;
 import com.erd.core.model.User;
-import com.erd.core.repository.ProjectRepository;
-import org.apache.logging.log4j.util.Strings;
+import com.erd.core.repository.TeamRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -18,39 +15,26 @@ public class ProjectSecurityService {
 
     private static final Logger logger = LoggerFactory.getLogger(ProjectSecurityService.class);
 
-    private final ProjectRepository projectRepository;
+    private final TeamRepository teamRepository;
     private final UserService userService;
 
-    public ProjectSecurityService(ProjectRepository projectRepository, UserService userService) {
-        this.projectRepository = projectRepository;
+    public ProjectSecurityService(TeamRepository teamRepository, UserService userService) {
+        this.teamRepository = teamRepository;
         this.userService = userService;
     }
 
     public boolean isUserOwnerOrMember(String projectId, String userEmail) {
         try {
             logger.info("Checking if user {} can access project {}", userEmail, projectId);
-            
             UUID projectUuid = UUID.fromString(projectId);
-            Project project = projectRepository.findById(projectUuid).orElse(null);
-            
-            if (Objects.isNull(project)) {
-                logger.warn("Project {} not found", projectId);
-                return false;
-            }
-
             User currentUser = userService.findByEmail(userEmail);
-            
-            boolean hasAccessToProject = project.getTeams().stream()
-                    .anyMatch(team -> team.getUser().getId().equals(currentUser.getId()));
-            
-            if (hasAccessToProject) {
+            boolean hasAccess = teamRepository.existsByUserIdAndProjectId(currentUser.getId(), projectUuid);
+            if (hasAccess) {
                 logger.info("User {} has access to project {}", userEmail, projectId);
-                return true;
+            } else {
+                logger.warn("User {} has no access to project {}", userEmail, projectId);
             }
-
-            logger.warn("User {} has no access to project {}", userEmail, projectId);
-            return false;
-            
+            return hasAccess;
         } catch (Exception e) {
             logger.error("Error checking project access for user {} and project {}", userEmail, projectId, e);
             return false;
@@ -58,41 +42,23 @@ public class ProjectSecurityService {
     }
 
     public boolean canUserAccessProject(String projectId) {
-        String userEmail = getCurrentUserEmail();
-        if (userEmail == null) {
-            return false;
-        }
-        return isUserOwnerOrMember(projectId, userEmail);
-    }
-
-    private String getCurrentUserEmail() {
         try {
             var authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null && authentication.getPrincipal() instanceof User user) {
-                return user.getEmail();
+            if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+                return false;
             }
-            return null;
+            return isUserOwnerOrMember(projectId, user.getEmail());
         } catch (Exception e) {
             logger.error("Error getting current user email", e);
-            return null;
+            return false;
         }
     }
 
     public boolean isProjectOwner(String projectId, String userEmail) {
         try {
             UUID projectUuid = UUID.fromString(projectId);
-            Project project = projectRepository.findById(projectUuid).orElse(null);
-            
-            if (project == null) {
-                return false;
-            }
-
             User currentUser = userService.findByEmail(userEmail);
-            
-            return project.getTeams().stream()
-                    .anyMatch(team -> team.getUser().getId().equals(currentUser.getId()) 
-                            && team.getRole() == RoleProjectEnum.OWNER);
-            
+            return teamRepository.existsByUserIdAndProjectIdAndRole(currentUser.getId(), projectUuid, RoleProjectEnum.OWNER);
         } catch (Exception e) {
             logger.error("Error checking project ownership", e);
             return false;
@@ -102,18 +68,9 @@ public class ProjectSecurityService {
     public boolean canUserEditProject(String projectId, String userEmail) {
         try {
             UUID projectUuid = UUID.fromString(projectId);
-            Project project = projectRepository.findById(projectUuid).orElse(null);
-            
-            if (project == null) {
-                return false;
-            }
-
             User currentUser = userService.findByEmail(userEmail);
-            
-            return project.getTeams().stream()
-                    .anyMatch(team -> team.getUser().getId().equals(currentUser.getId()) 
-                            && (team.getRole() == RoleProjectEnum.OWNER || team.getRole() == RoleProjectEnum.EDITOR));
-            
+            return teamRepository.existsByUserIdAndProjectIdAndRoleIn(currentUser.getId(), projectUuid,
+                    java.util.List.of(RoleProjectEnum.OWNER, RoleProjectEnum.EDITOR));
         } catch (Exception e) {
             logger.error("Error checking project edit permission", e);
             return false;

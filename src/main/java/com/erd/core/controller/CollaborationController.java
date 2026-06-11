@@ -14,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/collaboration")
-@CrossOrigin(origins = "http://localhost:4200")
+
 public class CollaborationController {
 
     private static final Logger logger = LoggerFactory.getLogger(CollaborationController.class);

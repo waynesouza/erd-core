@@ -5,7 +5,7 @@ import com.erd.core.dto.response.ExportDdlResponseDTO;
 import com.erd.core.service.DdlService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.CrossOrigin;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
-@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600, allowCredentials="true")
+
 @RestController
 @RequestMapping("/api/ddl")
 public class DdlController {

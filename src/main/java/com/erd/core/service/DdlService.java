@@ -284,7 +284,8 @@ public class DdlService {
         
         String columnName = matcher.group(1);
         String columnType = matcher.group(2);
-        String constraints = matcher.group(3) != null ? matcher.group(3).toUpperCase() : "";
+        // Group 3 is (.*)$ and always matches, possibly as an empty string.
+        String constraints = matcher.group(3).toUpperCase();
         
         ItemDTO item = new ItemDTO();
         item.setName(columnName);
@@ -363,10 +364,10 @@ public class DdlService {
 
         Matcher tableMatcher = tablePattern.matcher(ddlContent);
         while (tableMatcher.find()) {
+            // tableMap was built from this very pattern over this very content, so every
+            // table matched here is guaranteed to be present in it.
             String sourceTable = tableMatcher.group(1).trim();
             String tableBody   = tableMatcher.group(2);
-
-            if (!tableMap.containsKey(sourceTable)) continue;
 
             Matcher fkMatcher = fkPattern.matcher(tableBody);
             while (fkMatcher.find()) {

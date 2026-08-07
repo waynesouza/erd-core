@@ -6,11 +6,17 @@ spring:
     password: password
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/erd_test_db
+      auto-index-creation: false
 
 erd:
   app:
     jwt:
-      secret: test
+      # Base64 of a 61-byte secret. JJWT's Keys.hmacShaKeyFor requires >= 32 bytes (256 bits)
+      # for HS256, so the previous "test" value made every signing operation throw WeakKeyException.
+      secret: dGVzdC1zZWNyZXQta2V5LWZvci11bml0LXRlc3RzLW9ubHktbXVzdC1iZS1hdC1sZWFzdC0yNTYtYml0cw==
       expiration: 300000
       refresh-expiration: 2629746000
       cookie-name: erd-token-test

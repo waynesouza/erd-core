@@ -40,6 +40,9 @@ public class JwtService {
     @Value("${erd.app.jwt.refresh-cookie-name}")
     private String refreshCookieName;
 
+    @Value("${erd.app.jwt.cookie-secure}")
+    private boolean cookieSecure;
+
     public ResponseCookie generateTokenCookie(User user) {
         var token = createTokenFromEmail(user.getEmail());
         return generateCookie(cookieName, token, "/api");
@@ -98,7 +101,7 @@ public class JwtService {
     private ResponseCookie generateCookie(String name, String value, String path) {
         return ResponseCookie.from(name, value)
                 .httpOnly(true)
-                .secure(false) // Set to true in production with HTTPS
+                .secure(cookieSecure) // Enabled through configuration wherever the app is served over HTTPS
                 .sameSite("Lax")
                 .maxAge(24 * 60 * 60)
                 .path(path)

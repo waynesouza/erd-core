@@ -38,6 +38,7 @@ class JwtServiceTest {
         ReflectionTestUtils.setField(jwtService, "refreshExpiration", 2629746000L);
         ReflectionTestUtils.setField(jwtService, "cookieName", COOKIE_NAME);
         ReflectionTestUtils.setField(jwtService, "refreshCookieName", REFRESH_COOKIE_NAME);
+        ReflectionTestUtils.setField(jwtService, "cookieSecure", false);
     }
 
     private User sampleUser() {
@@ -60,6 +61,18 @@ class JwtServiceTest {
         assertFalse(cookie.isSecure());
         assertEquals("Lax", cookie.getSameSite());
         assertEquals("ada@erd.com", jwtService.getEmailFromToken(cookie.getValue()));
+    }
+
+    @Test
+    void testGenerateTokenCookie_marksTheCookieSecureWhenConfigured() {
+        // Given - how the app is deployed behind HTTPS
+        ReflectionTestUtils.setField(jwtService, "cookieSecure", true);
+
+        // When
+        ResponseCookie cookie = jwtService.generateTokenCookie(sampleUser());
+
+        // Then
+        assertTrue(cookie.isSecure());
     }
 
     @Test

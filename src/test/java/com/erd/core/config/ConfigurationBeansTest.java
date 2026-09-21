@@ -20,7 +20,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.socket.config.annotation.SockJsServiceRegistration;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.StompWebSocketEndpointRegistration;
 
 import java.util.List;
 import java.util.Map;
@@ -154,17 +156,30 @@ class ConfigurationBeansTest {
 
     @Test
     void testRegisterStompEndpoints_exposesTheWsEndpointWithSockJs(
-            @Mock(answer = Answers.RETURNS_DEEP_STUBS) StompEndpointRegistry registry,
+            @Mock StompEndpointRegistry registry,
+            @Mock StompWebSocketEndpointRegistration registration,
+            @Mock SockJsServiceRegistration sockJsRegistration,
             @Mock WebSocketAuthInterceptor authInterceptor,
             @Mock JwtHandshakeInterceptor handshakeInterceptor) {
         // Given
         WebSocketConfig webSocketConfig = new WebSocketConfig(authInterceptor, handshakeInterceptor);
+        String[] allowedOrigins = {"https://erd-client.example.com"};
+        ReflectionTestUtils.setField(webSocketConfig, "allowedOrigins", allowedOrigins);
+
+        when(registry.addEndpoint("/ws")).thenReturn(registration);
+        when(registration.setAllowedOriginPatterns(allowedOrigins)).thenReturn(registration);
+        when(registration.addInterceptors(handshakeInterceptor)).thenReturn(registration);
+        when(registration.withSockJS()).thenReturn(sockJsRegistration);
 
         // When
         webSocketConfig.registerStompEndpoints(registry);
 
-        // Then
+        // Then - the configured origins must reach the endpoint, otherwise the handshake is
+        // rejected wherever the browser origin differs from the proxied Host header
         verify(registry).addEndpoint("/ws");
+        verify(registration).setAllowedOriginPatterns(allowedOrigins);
+        verify(registration).addInterceptors(handshakeInterceptor);
+        verify(registration).withSockJS();
     }
 
     @Test

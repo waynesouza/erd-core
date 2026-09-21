@@ -21,3 +21,6 @@ erd:
       refresh-expiration: 2629746000
       cookie-name: erd-token
       refresh-cookie-name: erd-refresh-token
+      cookie-secure: false
+    websocket:
+      allowed-origins: http://localhost:4200,http://localhost:8081

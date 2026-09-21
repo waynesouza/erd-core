@@ -1,5 +1,6 @@
 package com.erd.core.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -16,6 +17,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthInterceptor webSocketAuthInterceptor;
     private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
+
+    // Behind a reverse proxy the handshake arrives with the proxy's Host, so the browser Origin
+    // never matches it and has to be allowed explicitly per environment.
+    @Value("${erd.app.websocket.allowed-origins}")
+    private String[] allowedOrigins;
 
     public WebSocketConfig(WebSocketAuthInterceptor webSocketAuthInterceptor,
                            JwtHandshakeInterceptor jwtHandshakeInterceptor) {
@@ -35,7 +41,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("http://localhost:4200", "http://localhost:8081")
+                .setAllowedOriginPatterns(allowedOrigins)
                 .addInterceptors(jwtHandshakeInterceptor)
                 .withSockJS();
     }

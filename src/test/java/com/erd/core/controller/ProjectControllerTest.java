@@ -14,10 +14,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,8 +70,8 @@ class ProjectControllerTest {
     }
 
     @Test
-    void testCreate_returnsCreated() throws Exception {
-        // Given
+    void testCreate_returnsCreatedWithTheCallerAsOwner() throws Exception {
+        // Given - the body names someone else as the owner
         ProjectResponseDTO responseDto = new ProjectResponseDTO();
         responseDto.setId(projectId);
         responseDto.setName("Sales ERD");
@@ -78,9 +81,14 @@ class ProjectControllerTest {
         mockMvc.perform(post("/api/project")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "name", "Sales ERD", "description", "desc", "userEmail", "ada@erd.com"))))
+                                "name", "Sales ERD", "description", "desc", "userEmail", "grace@erd.com")))
+                        .principal(new TestingAuthenticationToken("ada@erd.com", null)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Sales ERD"));
+
+        ArgumentCaptor<ProjectCreateRequestDTO> created = ArgumentCaptor.forClass(ProjectCreateRequestDTO.class);
+        verify(projectService).create(created.capture());
+        assertEquals("ada@erd.com", created.getValue().getUserEmail());
     }
 
     @Test

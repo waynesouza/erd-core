@@ -135,11 +135,13 @@ class MethodSecurityRulesTest {
 
     @Test
     @WithMockUser(username = USER_EMAIL, authorities = "USER")
-    void testUnprotectedRoute_doesNotConsultTheSecurityService() throws Exception {
-        // Given - getProjectsByUserEmail carries no @PreAuthorize
+    void testGetProjectsByUserEmail_isOnlyAllowedForTheCallersOwnEmail() throws Exception {
+        // Given
         when(projectService.getProjectsByUserEmail(USER_EMAIL)).thenReturn(java.util.List.of());
 
-        // When & Then
+        // When & Then - another user's project list is refused, the caller's own is returned
+        mockMvc.perform(get("/api/project/user-email/{email}", "grace@erd.com"))
+                .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/project/user-email/{email}", USER_EMAIL))
                 .andExpect(status().isOk());
     }

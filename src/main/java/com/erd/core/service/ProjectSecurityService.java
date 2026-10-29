@@ -9,11 +9,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 import java.util.UUID;
 
+// Project.teams is lazy. HTTP requests keep a session open for the whole request (open-in-view),
+// but the STOMP interceptor and message handlers run outside it, so each check opens its own.
 @Service
+@Transactional(readOnly = true)
 public class ProjectSecurityService {
 
     private static final Logger logger = LoggerFactory.getLogger(ProjectSecurityService.class);

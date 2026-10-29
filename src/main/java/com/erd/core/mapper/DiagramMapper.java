@@ -48,7 +48,10 @@ public class DiagramMapper {
         List<NodeDataDTO> nodeDataArray = Objects.requireNonNullElse(convertJsonToList(diagram.getNodeData(), new TypeReference<>() {}), new ArrayList<>());
         List<LinkDataDTO> linkDataArray = Objects.requireNonNullElse(convertJsonToList(diagram.getLinkData(), new TypeReference<>() {}), new ArrayList<>());
 
-        return new DiagramDataResponseDTO(nodeDataArray, linkDataArray);
+        DiagramDataResponseDTO responseDto = new DiagramDataResponseDTO(nodeDataArray, linkDataArray);
+        // The broadcast topic is derived from it: without it every update went to /topic/diagram/null.
+        responseDto.setProjectId(diagram.getProjectId());
+        return responseDto;
     }
 
     public String convertToSting(Object object) {

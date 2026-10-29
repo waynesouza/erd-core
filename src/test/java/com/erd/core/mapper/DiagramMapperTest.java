@@ -104,6 +104,7 @@ class DiagramMapperTest {
         assertEquals("users", responseDto.getNodeDataArray().getFirst().getKey());
         assertEquals(1, responseDto.getLinkDataArray().size());
         assertEquals("orders", responseDto.getLinkDataArray().getFirst().getFrom());
+        assertEquals(diagram.getProjectId(), responseDto.getProjectId());
     }
 
     @Test

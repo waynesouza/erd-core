@@ -166,7 +166,7 @@ class ConfigurationBeansTest {
         String[] allowedOrigins = {"https://erd-client.example.com"};
         ReflectionTestUtils.setField(webSocketConfig, "allowedOrigins", allowedOrigins);
 
-        when(registry.addEndpoint("/ws")).thenReturn(registration);
+        when(registry.addEndpoint("/api/ws")).thenReturn(registration);
         when(registration.setAllowedOriginPatterns(allowedOrigins)).thenReturn(registration);
         when(registration.addInterceptors(handshakeInterceptor)).thenReturn(registration);
         when(registration.withSockJS()).thenReturn(sockJsRegistration);
@@ -176,7 +176,7 @@ class ConfigurationBeansTest {
 
         // Then - the configured origins must reach the endpoint, otherwise the handshake is
         // rejected wherever the browser origin differs from the proxied Host header
-        verify(registry).addEndpoint("/ws");
+        verify(registry).addEndpoint("/api/ws");
         verify(registration).setAllowedOriginPatterns(allowedOrigins);
         verify(registration).addInterceptors(handshakeInterceptor);
         verify(registration).withSockJS();

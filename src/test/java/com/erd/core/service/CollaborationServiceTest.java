@@ -5,7 +5,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,6 +55,47 @@ class CollaborationServiceTest {
         assertEquals("Ada Lovelace", lock.getUserName());
         assertNotNull(lock.getLockedAt());
         assertTrue(collaborationService.isEntityLocked(ENTITY_ID));
+    }
+
+    @Test
+    void testLockEntity_grantsASingleLockWhenManyUsersRequestItAtOnce() throws Exception {
+        // Given - every thread waits on the same latch so the requests hit the map together
+        int users = 16;
+        int rounds = 200;
+        ExecutorService pool = Executors.newFixedThreadPool(users);
+        try {
+            for (int round = 0; round < rounds; round++) {
+                String entityId = "race-" + round;
+                CountDownLatch start = new CountDownLatch(1);
+                List<Future<Boolean>> attempts = new ArrayList<>();
+                for (int u = 0; u < users; u++) {
+                    String email = "user" + u + "@erd.com";
+                    attempts.add(pool.submit(() -> {
+                        start.await();
+                        try {
+                            collaborationService.lockEntity(entityId, PROJECT_ID, email, email);
+                            return true;
+                        } catch (RuntimeException alreadyLocked) {
+                            return false;
+                        }
+                    }));
+                }
+
+                // When
+                start.countDown();
+                int granted = 0;
+                for (Future<Boolean> attempt : attempts) {
+                    if (attempt.get(5, TimeUnit.SECONDS)) {
+                        granted++;
+                    }
+                }
+
+                // Then
+                assertEquals(1, granted, "Exactly one user may hold the lock of " + entityId);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

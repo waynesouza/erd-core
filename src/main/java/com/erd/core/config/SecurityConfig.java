@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/user/register", "/api/user").permitAll()
-                        .requestMatchers("/ws/**").permitAll() // WebSocket handshake endpoint
+                        .requestMatchers("/api/ws/**").permitAll() // WebSocket handshake endpoint
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/project/**").hasAnyAuthority("USER", "ADMIN")
                         .requestMatchers("/api/diagram/**").hasAnyAuthority("USER", "ADMIN")

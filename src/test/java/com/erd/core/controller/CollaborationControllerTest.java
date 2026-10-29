@@ -1,6 +1,8 @@
 package com.erd.core.controller;
 
 import com.erd.core.dto.collaboration.EntityLockDTO;
+import com.erd.core.enumeration.RoleEnum;
+import com.erd.core.model.User;
 import com.erd.core.service.CollaborationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +14,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -49,6 +54,7 @@ class CollaborationControllerTest {
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
+    private Authentication authentication;
 
     @Mock
     private CollaborationService collaborationService;
@@ -63,6 +69,8 @@ class CollaborationControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(collaborationController).build();
         objectMapper = new ObjectMapper();
+        User ada = new User("Ada", "Lovelace", USER_EMAIL, "encoded", RoleEnum.USER);
+        authentication = new UsernamePasswordAuthenticationToken(ada, null, ada.getAuthorities());
     }
 
     private EntityLockDTO lock() {
@@ -93,12 +101,49 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/lock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(lockPayload()))
+                        .content(lockPayload())
+                        .principal(authentication))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.entityId").value(ENTITY_ID))
                 .andExpect(jsonPath("$.userEmail").value(USER_EMAIL));
 
         verify(messagingTemplate).convertAndSend(eq("/topic/collaboration/" + PROJECT_ID), any(Object.class));
+    }
+
+    @Test
+    void testLockEntity_takesTheOwnerFromTheTokenAndIgnoresTheBody() throws Exception {
+        // Given - the body claims another user's identity
+        String spoofedPayload = objectMapper.writeValueAsString(Map.of(
+                "entityId", ENTITY_ID,
+                "projectId", PROJECT_ID,
+                "userEmail", "grace@erd.com",
+                "userName", "Grace Hopper"));
+        when(collaborationService.lockEntity(ENTITY_ID, PROJECT_ID, USER_EMAIL, "Ada Lovelace")).thenReturn(lock());
+
+        // When & Then
+        mockMvc.perform(post("/api/collaboration/lock-entity")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(spoofedPayload)
+                        .principal(authentication))
+                .andExpect(status().isOk());
+
+        verify(collaborationService).lockEntity(ENTITY_ID, PROJECT_ID, USER_EMAIL, "Ada Lovelace");
+    }
+
+    @Test
+    void testLockEntity_fallsBackToTheEmailWhenThePrincipalIsNotAUser() throws Exception {
+        // Given
+        Authentication plain = new TestingAuthenticationToken(USER_EMAIL, null);
+        when(collaborationService.lockEntity(ENTITY_ID, PROJECT_ID, USER_EMAIL, USER_EMAIL)).thenReturn(lock());
+
+        // When & Then
+        mockMvc.perform(post("/api/collaboration/lock-entity")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(lockPayload())
+                        .principal(plain))
+                .andExpect(status().isOk());
+
+        verify(collaborationService).lockEntity(ENTITY_ID, PROJECT_ID, USER_EMAIL, USER_EMAIL);
     }
 
     @Test
@@ -110,7 +155,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/lock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(lockPayload()))
+                        .content(lockPayload())
+                        .principal(authentication))
                 .andExpect(status().isBadRequest());
 
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
@@ -126,7 +172,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/lock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(lockPayload()))
+                        .content(lockPayload())
+                        .principal(authentication))
                 .andExpect(status().isInternalServerError());
     }
 
@@ -140,7 +187,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/lock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(lockPayload()))
+                        .content(lockPayload())
+                        .principal(authentication))
                 .andExpect(status().isOk());
     }
 
@@ -156,7 +204,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/unlock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(unlockPayload()))
+                        .content(unlockPayload())
+                        .principal(authentication))
                 .andExpect(status().isOk());
 
         verify(collaborationService).unlockEntity(ENTITY_ID, USER_EMAIL);
@@ -171,7 +220,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/unlock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(unlockPayload()))
+                        .content(unlockPayload())
+                        .principal(authentication))
                 .andExpect(status().isOk());
 
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
@@ -187,7 +237,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/unlock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(unlockPayload()))
+                        .content(unlockPayload())
+                        .principal(authentication))
                 .andExpect(status().isBadRequest());
     }
 
@@ -201,7 +252,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/unlock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(unlockPayload()))
+                        .content(unlockPayload())
+                        .principal(authentication))
                 .andExpect(status().isInternalServerError());
     }
 
@@ -215,7 +267,8 @@ class CollaborationControllerTest {
         // When & Then
         mockMvc.perform(post("/api/collaboration/unlock-entity")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(unlockPayload()))
+                        .content(unlockPayload())
+                        .principal(authentication))
                 .andExpect(status().isOk());
     }
 

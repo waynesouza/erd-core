@@ -1,11 +1,14 @@
 package com.erd.core.controller;
 
 import com.erd.core.dto.collaboration.EntityLockDTO;
+import com.erd.core.model.User;
 import com.erd.core.service.CollaborationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -27,13 +30,16 @@ public class CollaborationController {
         this.messagingTemplate = messagingTemplate;
     }
 
+    // The lock owner is always the authenticated caller; any userEmail/userName in the body is ignored.
     @PostMapping("/lock-entity")
-    public ResponseEntity<EntityLockDTO> lockEntity(@RequestBody Map<String, String> request) {
+    @PreAuthorize("@projectSecurityService.canUserEditProject(#request['projectId'], authentication.name)")
+    public ResponseEntity<EntityLockDTO> lockEntity(@RequestBody Map<String, String> request,
+                                                    Authentication authentication) {
         try {
             String entityId = request.get("entityId");
             String projectId = request.get("projectId");
-            String userEmail = request.get("userEmail");
-            String userName = request.get("userName");
+            String userEmail = authentication.getName();
+            String userName = displayName(authentication);
 
             logger.info("Lock entity request: entityId={}, userEmail={}", entityId, userEmail);
 
@@ -54,10 +60,11 @@ public class CollaborationController {
     }
 
     @PostMapping("/unlock-entity")
-    public ResponseEntity<Void> unlockEntity(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Void> unlockEntity(@RequestBody Map<String, String> request,
+                                             Authentication authentication) {
         try {
             String entityId = request.get("entityId");
-            String userEmail = request.get("userEmail");
+            String userEmail = authentication.getName();
 
             logger.info("Unlock entity request: entityId={}, userEmail={}", entityId, userEmail);
 
@@ -83,6 +90,7 @@ public class CollaborationController {
     }
 
     @GetMapping("/project-locks/{projectId}")
+    @PreAuthorize("@projectSecurityService.isUserOwnerOrMember(#projectId, authentication.name)")
     public ResponseEntity<List<EntityLockDTO>> getProjectLocks(@PathVariable String projectId) {
         try {
             logger.info("Get project locks request: projectId={}", projectId);
@@ -112,6 +120,7 @@ public class CollaborationController {
     }
 
     @DeleteMapping("/user-locks/{userEmail}")
+    @PreAuthorize("#userEmail == authentication.name")
     public ResponseEntity<Void> clearUserLocks(@PathVariable String userEmail) {
         try {
             logger.info("Clear user locks request: userEmail={}", userEmail);
@@ -137,6 +146,13 @@ public class CollaborationController {
             logger.error("Error cleaning up stale locks", e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    private static String displayName(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof User user) {
+            return user.getFirstName() + " " + user.getLastName();
+        }
+        return authentication.getName();
     }
 
     private void sendLockNotification(String type, EntityLockDTO lock) {

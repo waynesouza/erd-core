@@ -23,18 +23,7 @@ public class CollaborationService {
     public EntityLockDTO lockEntity(String entityId, String projectId, String userEmail, String userName) {
         logger.info("Attempting to lock entity {} by user {}", entityId, userEmail);
 
-        // Check if entity is already locked
-        EntityLockDTO existingLock = entityLocks.get(entityId);
-        if (existingLock != null) {
-            if (!existingLock.getUserEmail().equals(userEmail)) {
-                throw new RuntimeException("Entity is already locked by " + existingLock.getUserEmail());
-            }
-            // Entity already locked by same user, return existing lock
-            return existingLock;
-        }
-
-        // Create new lock
-        EntityLockDTO lock = new EntityLockDTO(
+        EntityLockDTO candidate = new EntityLockDTO(
                 entityId,
                 userEmail, // Using email as userId
                 userEmail,
@@ -43,10 +32,18 @@ public class CollaborationService {
                 projectId
         );
 
-        entityLocks.put(entityId, lock);
-        logger.info("Entity {} locked successfully by user {}", entityId, userEmail);
-
-        return lock;
+        // putIfAbsent checks and claims the lock in one atomic step, so two simultaneous requests
+        // for the same entity can never both succeed.
+        EntityLockDTO existingLock = entityLocks.putIfAbsent(entityId, candidate);
+        if (existingLock == null) {
+            logger.info("Entity {} locked successfully by user {}", entityId, userEmail);
+            return candidate;
+        }
+        if (!existingLock.getUserEmail().equals(userEmail)) {
+            throw new RuntimeException("Entity is already locked by " + existingLock.getUserEmail());
+        }
+        // Entity already locked by same user, return existing lock
+        return existingLock;
     }
 
     public void unlockEntity(String entityId, String userEmail) {
@@ -55,7 +52,7 @@ public class CollaborationService {
         EntityLockDTO lock = entityLocks.get(entityId);
         if (lock != null) {
             if (lock.getUserEmail().equals(userEmail)) {
-                entityLocks.remove(entityId);
+                entityLocks.remove(entityId, lock);
                 logger.info("Entity {} unlocked successfully", entityId);
             } else {
                 logger.warn("User {} attempted to unlock entity {} but it's owned by {}", 

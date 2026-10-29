@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -22,7 +23,9 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -138,6 +141,59 @@ class MethodSecurityRulesTest {
 
         // When & Then
         mockMvc.perform(get("/api/project/user-email/{email}", USER_EMAIL))
+                .andExpect(status().isOk());
+    }
+
+    // ------------------------------------------------------------------
+    // collaboration locks
+    // ------------------------------------------------------------------
+
+    private static final String LOCK_BODY = "{\"entityId\":\"table-users\",\"projectId\":\"project-1\"}";
+
+    @Test
+    @WithMockUser(username = USER_EMAIL, authorities = "USER")
+    void testLockEntity_isDeniedWhenTheUserCannotEdit() throws Exception {
+        // Given - a viewer of the project
+        when(projectSecurityService.canUserEditProject("project-1", USER_EMAIL)).thenReturn(false);
+
+        // When & Then
+        mockMvc.perform(post("/api/collaboration/lock-entity")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(LOCK_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = USER_EMAIL, authorities = "USER")
+    void testLockEntity_isAllowedForAnEditor() throws Exception {
+        // Given
+        when(projectSecurityService.canUserEditProject("project-1", USER_EMAIL)).thenReturn(true);
+
+        // When & Then
+        mockMvc.perform(post("/api/collaboration/lock-entity")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(LOCK_BODY))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = USER_EMAIL, authorities = "USER")
+    void testGetProjectLocks_isDeniedWhenTheUserIsNotAMember() throws Exception {
+        // Given
+        when(projectSecurityService.isUserOwnerOrMember("project-1", USER_EMAIL)).thenReturn(false);
+
+        // When & Then
+        mockMvc.perform(get("/api/collaboration/project-locks/{projectId}", "project-1"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = USER_EMAIL, authorities = "USER")
+    void testClearUserLocks_isOnlyAllowedForTheCallersOwnLocks() throws Exception {
+        // When & Then
+        mockMvc.perform(delete("/api/collaboration/user-locks/{userEmail}", "grace@erd.com"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/collaboration/user-locks/{userEmail}", USER_EMAIL))
                 .andExpect(status().isOk());
     }
 

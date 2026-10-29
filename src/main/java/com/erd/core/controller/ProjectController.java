@@ -12,6 +12,7 @@ import com.erd.core.service.TeamService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,12 +39,17 @@ public class ProjectController {
         this.teamService = teamService;
     }
 
+    // The creator becomes the project's owner, so it is always the authenticated caller; a userEmail
+    // in the body is ignored, otherwise anyone could create projects owned by someone else.
     @PostMapping
-    public ResponseEntity<ProjectResponseDTO> create(@RequestBody ProjectCreateRequestDTO projectCreateRequestDto) {
+    public ResponseEntity<ProjectResponseDTO> create(@RequestBody ProjectCreateRequestDTO projectCreateRequestDto,
+                                                     Authentication authentication) {
+        projectCreateRequestDto.setUserEmail(authentication.getName());
         return new ResponseEntity<>(projectService.create(projectCreateRequestDto), HttpStatus.CREATED);
     }
 
     @GetMapping("/user-email/{email}")
+    @PreAuthorize("#email == authentication.name")
     public ResponseEntity<List<ProjectDetailsResponseDTO>> getProjectsByUserEmail(@PathVariable(name = "email") String email) {
         return new ResponseEntity<>(projectService.getProjectsByUserEmail(email), HttpStatus.OK);
     }

@@ -1,5 +1,7 @@
 package com.erd.core.config;
 
+import com.erd.core.dto.collaboration.EntityLockDTO;
+import com.erd.core.service.CollaborationNotifier;
 import com.erd.core.service.CollaborationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,17 +17,22 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.security.Principal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class WebSocketEventListenerTest {
 
     @Mock
     private CollaborationService collaborationService;
+
+    @Mock
+    private CollaborationNotifier collaborationNotifier;
 
     @InjectMocks
     private WebSocketEventListener webSocketEventListener;
@@ -43,12 +50,16 @@ class WebSocketEventListenerTest {
     void testHandleWebSocketDisconnect_releasesTheLocksOfTheDisconnectedUser() {
         // Given
         Principal user = new UsernamePasswordAuthenticationToken("ada@erd.com", null, List.of());
+        EntityLockDTO users = new EntityLockDTO("users", "ada@erd.com", "ada@erd.com", "Ada", LocalDateTime.now(), "p1");
+        EntityLockDTO orders = new EntityLockDTO("orders", "ada@erd.com", "ada@erd.com", "Ada", LocalDateTime.now(), "p1");
+        when(collaborationService.clearUserLocks("ada@erd.com")).thenReturn(List.of(users, orders));
 
         // When
         webSocketEventListener.handleWebSocketDisconnect(disconnectEvent(user));
 
-        // Then
-        verify(collaborationService).clearUserLocks("ada@erd.com");
+        // Then - each released lock is announced to the other members of its project
+        verify(collaborationNotifier).lockReleased(users);
+        verify(collaborationNotifier).lockReleased(orders);
     }
 
     @Test

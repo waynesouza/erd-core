@@ -11,6 +11,7 @@ import com.erd.core.dto.error.ErrorMessageDTO;
 import com.erd.core.dto.request.AuthenticationRequestDTO;
 import com.erd.core.dto.request.CreateDiagramRequestDTO;
 import com.erd.core.dto.request.DiagramDataRequestDTO;
+import com.erd.core.dto.request.DiagramPatchRequestDTO;
 import com.erd.core.dto.request.ExportDdlRequestDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.request.ProjectCreateRequestDTO;
@@ -82,6 +83,7 @@ class PojoContractTest {
                 AuthenticationRequestDTO.class,
                 CreateDiagramRequestDTO.class,
                 DiagramDataRequestDTO.class,
+                DiagramPatchRequestDTO.class,
                 ExportDdlRequestDTO.class,
                 ImportDdlRequestDTO.class,
                 ProjectCreateRequestDTO.class,

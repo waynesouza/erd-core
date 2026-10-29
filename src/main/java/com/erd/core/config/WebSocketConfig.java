@@ -50,6 +50,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.setApplicationDestinationPrefixes("/app");
+        // Delivers the broadcasts to each session in the order they were published.
+        registry.setPreservePublishOrder(true);
         registry.enableSimpleBroker("/topic")
                 .setHeartbeatValue(new long[]{10000, 0})
                 .setTaskScheduler(heartbeatScheduler());

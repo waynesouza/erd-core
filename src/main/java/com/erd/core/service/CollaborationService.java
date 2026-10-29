@@ -85,10 +85,15 @@ public class CollaborationService {
         return entityLocks.get(entityId);
     }
 
-    public void clearUserLocks(String userEmail) {
+    // Returns the locks it dropped so the caller can tell the other collaborators about them.
+    public List<EntityLockDTO> clearUserLocks(String userEmail) {
         logger.info("Clearing all locks for user {}", userEmail);
 
-        entityLocks.entrySet().removeIf(entry -> entry.getValue().getUserEmail().equals(userEmail));
+        List<EntityLockDTO> released = entityLocks.values().stream()
+                .filter(lock -> lock.getUserEmail().equals(userEmail))
+                .toList();
+        released.forEach(lock -> entityLocks.remove(lock.getEntityId(), lock));
+        return released;
     }
 
     public void clearProjectLocks(String projectId) {

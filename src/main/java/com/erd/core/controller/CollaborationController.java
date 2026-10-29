@@ -2,16 +2,15 @@ package com.erd.core.controller;
 
 import com.erd.core.dto.collaboration.EntityLockDTO;
 import com.erd.core.model.User;
+import com.erd.core.service.CollaborationNotifier;
 import com.erd.core.service.CollaborationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,11 +22,11 @@ public class CollaborationController {
     private static final Logger logger = LoggerFactory.getLogger(CollaborationController.class);
 
     private final CollaborationService collaborationService;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final CollaborationNotifier collaborationNotifier;
 
-    public CollaborationController(CollaborationService collaborationService, SimpMessagingTemplate messagingTemplate) {
+    public CollaborationController(CollaborationService collaborationService, CollaborationNotifier collaborationNotifier) {
         this.collaborationService = collaborationService;
-        this.messagingTemplate = messagingTemplate;
+        this.collaborationNotifier = collaborationNotifier;
     }
 
     // The lock owner is always the authenticated caller; any userEmail/userName in the body is ignored.
@@ -46,7 +45,7 @@ public class CollaborationController {
             EntityLockDTO lock = collaborationService.lockEntity(entityId, projectId, userEmail, userName);
             
             // Send WebSocket notification to other project users
-            sendLockNotification("ENTITY_LOCKED", lock);
+            collaborationNotifier.lockAcquired(lock);
             
             return ResponseEntity.ok(lock);
 
@@ -75,7 +74,7 @@ public class CollaborationController {
             
             // Send WebSocket notification to other project users
             if (lockToRemove != null) {
-                sendUnlockNotification("ENTITY_UNLOCKED", lockToRemove);
+                collaborationNotifier.lockReleased(lockToRemove);
             }
             
             return ResponseEntity.ok().build();
@@ -153,43 +152,6 @@ public class CollaborationController {
             return user.getFirstName() + " " + user.getLastName();
         }
         return authentication.getName();
-    }
-
-    private void sendLockNotification(String type, EntityLockDTO lock) {
-        try {
-            Map<String, Object> message = new HashMap<>();
-            message.put("type", type);
-            message.put("payload", lock);
-            message.put("projectId", lock.getProjectId());
-            message.put("userEmail", lock.getUserEmail());
-
-            logger.info("Sending WebSocket notification: type={}, entityId={}, projectId={}", 
-                       type, lock.getEntityId(), lock.getProjectId());
-
-            messagingTemplate.convertAndSend("/topic/collaboration/" + lock.getProjectId(), message);
-        } catch (Exception e) {
-            logger.error("Error sending lock notification", e);
-        }
-    }
-
-    private void sendUnlockNotification(String type, EntityLockDTO lock) {
-        try {
-            Map<String, Object> message = new HashMap<>();
-            message.put("type", type);
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("entityId", lock.getEntityId());
-            payload.put("userEmail", lock.getUserEmail());
-            message.put("payload", payload);
-            message.put("projectId", lock.getProjectId());
-            message.put("userEmail", lock.getUserEmail());
-
-            logger.info("Sending WebSocket notification: type={}, entityId={}, projectId={}",
-                       type, lock.getEntityId(), lock.getProjectId());
-
-            messagingTemplate.convertAndSend("/topic/collaboration/" + lock.getProjectId(), message);
-        } catch (Exception e) {
-            logger.error("Error sending unlock notification", e);
-        }
     }
 
 }

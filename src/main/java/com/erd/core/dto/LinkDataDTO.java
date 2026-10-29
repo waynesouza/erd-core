@@ -4,6 +4,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class LinkDataDTO {
 
+    // Identifies the link when patches are merged; links saved before it existed have none.
+    @JsonProperty
+    private String id;
+
     @JsonProperty
     private String from;
 
@@ -18,6 +22,14 @@ public class LinkDataDTO {
 
     @JsonProperty
     private String fromColumn;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
 
     public String getFrom() {
         return from;

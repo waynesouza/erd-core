@@ -40,6 +40,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -193,6 +194,45 @@ class RealTimeChannelIntegrationTest {
         // Then
         assertNull(ownerInbox.poll(SILENCE_MS, TimeUnit.MILLISECONDS));
         verify(diagramRepository, never()).save(any(Diagram.class));
+    }
+
+    @Test
+    void testConcurrentPatchesToDifferentTablesAreBothKept() throws Exception {
+        // Given - the repository keeps the stored document, as MongoDB would
+        AtomicReference<Diagram> stored = new AtomicReference<>();
+        when(diagramRepository.findByProjectId(project.getId().toString()))
+                .thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(diagramRepository.save(any(Diagram.class))).thenAnswer(invocation -> {
+            stored.set(invocation.getArgument(0));
+            return invocation.getArgument(0);
+        });
+        BlockingQueue<DiagramDataResponseDTO> ownerInbox = subscribeToDiagram(connect(owner));
+        StompSession firstEditor = connect(editor);
+        StompSession secondEditor = connect(owner);
+
+        // When - both send at once, each knowing only its own table
+        firstEditor.send("/app/patch", patchWithTable("customers"));
+        secondEditor.send("/app/patch", patchWithTable("invoices"));
+
+        // Then - the last broadcast carries both tables
+        DiagramDataResponseDTO last = null;
+        for (int i = 0; i < 2; i++) {
+            DiagramDataResponseDTO update = ownerInbox.poll(5, TimeUnit.SECONDS);
+            assertNotNull(update, "Each patch should be broadcast");
+            last = update;
+        }
+        assertEquals(List.of("customers", "invoices"),
+                last.getNodeDataArray().stream().map(node -> node.getKey()).sorted().toList());
+    }
+
+    private Map<String, Object> patchWithTable(String tableName) {
+        return Map.of(
+                "projectId", project.getId().toString(),
+                "upsertNodes", List.of(Map.of(
+                        "id", UUID.randomUUID().toString(),
+                        "key", tableName,
+                        "items", List.of(),
+                        "location", Map.of("x", "10", "y", "20"))));
     }
 
     @Test

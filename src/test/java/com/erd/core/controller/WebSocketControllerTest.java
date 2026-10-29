@@ -1,6 +1,7 @@
 package com.erd.core.controller;
 
 import com.erd.core.dto.request.DiagramDataRequestDTO;
+import com.erd.core.dto.request.DiagramPatchRequestDTO;
 import com.erd.core.service.ProjectSecurityService;
 import com.erd.core.service.WebSocketService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -80,6 +81,34 @@ class WebSocketControllerTest {
         // Then
         verify(projectSecurityService, never()).canUserEditProject(anyString(), anyString());
         verify(webSocketService, never()).save(any());
+    }
+
+    @Test
+    void testHandlePatch_appliesThePatchWhenTheSenderCanEdit() {
+        // Given
+        DiagramPatchRequestDTO patch = new DiagramPatchRequestDTO();
+        patch.setProjectId(PROJECT_ID);
+        when(projectSecurityService.canUserEditProject(PROJECT_ID.toString(), "ada@erd.com")).thenReturn(true);
+
+        // When
+        webSocketController.handlePatch(patch, ADA);
+
+        // Then
+        verify(webSocketService).applyPatch(patch);
+    }
+
+    @Test
+    void testHandlePatch_dropsThePatchWhenTheSenderCannotEdit() {
+        // Given
+        DiagramPatchRequestDTO patch = new DiagramPatchRequestDTO();
+        patch.setProjectId(PROJECT_ID);
+        when(projectSecurityService.canUserEditProject(PROJECT_ID.toString(), "ada@erd.com")).thenReturn(false);
+
+        // When
+        webSocketController.handlePatch(patch, ADA);
+
+        // Then
+        verify(webSocketService, never()).applyPatch(any());
     }
 
     @Test

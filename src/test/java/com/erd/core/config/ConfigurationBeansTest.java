@@ -194,6 +194,7 @@ class ConfigurationBeansTest {
         // Then
         verify(registry).setApplicationDestinationPrefixes("/app");
         verify(registry).enableSimpleBroker("/topic");
+        verify(registry).setPreservePublishOrder(true);
     }
 
     @Test

@@ -19,6 +19,30 @@ public class NodeDataDTO {
     @JsonProperty
     private LocationDTO location;
 
+    // Set only on the intermediary table of a many-to-many relationship: the two tables it joins.
+    // Without them the client cannot clean the intermediary table up once the diagram is reloaded.
+    @JsonProperty
+    private String firstEntityId;
+
+    @JsonProperty
+    private String secondEntityId;
+
+    public String getFirstEntityId() {
+        return firstEntityId;
+    }
+
+    public void setFirstEntityId(String firstEntityId) {
+        this.firstEntityId = firstEntityId;
+    }
+
+    public String getSecondEntityId() {
+        return secondEntityId;
+    }
+
+    public void setSecondEntityId(String secondEntityId) {
+        this.secondEntityId = secondEntityId;
+    }
+
     public UUID getId() {
         return id;
     }

@@ -1,5 +1,6 @@
 package com.erd.core.config;
 
+import com.erd.core.service.CollaborationNotifier;
 import com.erd.core.service.CollaborationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +17,12 @@ public class WebSocketEventListener {
     private static final Logger logger = LoggerFactory.getLogger(WebSocketEventListener.class);
 
     private final CollaborationService collaborationService;
+    private final CollaborationNotifier collaborationNotifier;
 
-    public WebSocketEventListener(CollaborationService collaborationService) {
+    public WebSocketEventListener(CollaborationService collaborationService,
+                                  CollaborationNotifier collaborationNotifier) {
         this.collaborationService = collaborationService;
+        this.collaborationNotifier = collaborationNotifier;
     }
 
     @EventListener
@@ -29,7 +33,8 @@ public class WebSocketEventListener {
         if (user != null) {
             String userEmail = user.getName();
             logger.info("WebSocket session disconnected for user: {}", userEmail);
-            collaborationService.clearUserLocks(userEmail);
+            // Without the notifications the other clients would keep showing the entities as locked.
+            collaborationService.clearUserLocks(userEmail).forEach(collaborationNotifier::lockReleased);
             logger.info("All entity locks released for disconnected user: {}", userEmail);
         } else {
             logger.info("WebSocket session disconnected (unauthenticated session: {})", accessor.getSessionId());

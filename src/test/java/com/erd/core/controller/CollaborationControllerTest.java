@@ -3,12 +3,12 @@ package com.erd.core.controller;
 import com.erd.core.dto.collaboration.EntityLockDTO;
 import com.erd.core.enumeration.RoleEnum;
 import com.erd.core.model.User;
+import com.erd.core.service.CollaborationNotifier;
 import com.erd.core.service.CollaborationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
@@ -62,11 +62,13 @@ class CollaborationControllerTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
-    @InjectMocks
     private CollaborationController collaborationController;
 
     @BeforeEach
     void setUp() {
+        // A real notifier over the mocked template, so the tests still see the exact broadcast.
+        collaborationController = new CollaborationController(
+                collaborationService, new CollaborationNotifier(messagingTemplate));
         mockMvc = MockMvcBuilders.standaloneSetup(collaborationController).build();
         objectMapper = new ObjectMapper();
         User ada = new User("Ada", "Lovelace", USER_EMAIL, "encoded", RoleEnum.USER);

@@ -214,9 +214,10 @@ class CollaborationServiceTest {
         collaborationService.lockEntity("table-b", PROJECT_ID, "grace@erd.com", "Grace");
 
         // When
-        collaborationService.clearUserLocks(OWNER_EMAIL);
+        List<EntityLockDTO> released = collaborationService.clearUserLocks(OWNER_EMAIL);
 
         // Then
+        assertEquals(List.of("table-a"), released.stream().map(EntityLockDTO::getEntityId).toList());
         assertFalse(collaborationService.isEntityLocked("table-a"));
         assertTrue(collaborationService.isEntityLocked("table-b"));
     }

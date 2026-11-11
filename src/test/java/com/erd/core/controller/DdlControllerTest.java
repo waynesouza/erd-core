@@ -2,6 +2,7 @@ package com.erd.core.controller;
 
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.dto.response.ImportDdlResponseDTO;
 import com.erd.core.exception.DdlImportException;
 import com.erd.core.service.DdlService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +15,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,12 +54,17 @@ class DdlControllerTest {
         ImportDdlRequestDTO requestDto = new ImportDdlRequestDTO();
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent("CREATE TABLE users (id INT PRIMARY KEY);");
+        when(ddlService.importDdl(any(ImportDdlRequestDTO.class)))
+                .thenReturn(new ImportDdlResponseDTO(1, 0, List.of("Table users has no primary key.")));
 
-        // When & Then
+        // When & Then - the client shows what the script could not represent
         mockMvc.perform(post("/api/ddl/import")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requestDto)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tables").value(1))
+                .andExpect(jsonPath("$.relationships").value(0))
+                .andExpect(jsonPath("$.warnings[0]").value("Table users has no primary key."));
 
         verify(ddlService).importDdl(any(ImportDdlRequestDTO.class));
     }

@@ -33,10 +33,10 @@ public class DdlController {
 
     @PostMapping(value = "/import", consumes = APPLICATION_JSON_VALUE)
     @PreAuthorize("@projectSecurityService.canUserEditProject(#requestDto.projectId, authentication.name)")
-    public ResponseEntity<ErrorMessageDTO> importDdl(@RequestBody ImportDdlRequestDTO requestDto) {
+    public ResponseEntity<Object> importDdl(@RequestBody ImportDdlRequestDTO requestDto) {
         try {
-            ddlService.importDdl(requestDto);
-            return ResponseEntity.ok().build();
+            // The body lists what the script could not represent, so the user knows what was left out.
+            return ResponseEntity.ok(ddlService.importDdl(requestDto));
         } catch (DdlImportException e) {
             // The reason is meant for the user, so it goes back in the body.
             return ResponseEntity.badRequest().body(new ErrorMessageDTO(

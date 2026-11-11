@@ -7,6 +7,7 @@ import com.erd.core.dto.collaboration.EntityLockDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.dto.response.ImportDdlResponseDTO;
 import com.erd.core.exception.DdlImportException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -481,19 +482,19 @@ class DdlServiceCoverageTest {
         assertTrue(nodeJson.contains("\"name\":\"c_int\",\"type\":\"INTEGER\""));
         assertTrue(nodeJson.contains("\"name\":\"c_integer\",\"type\":\"INTEGER\""));
         assertTrue(nodeJson.contains("\"name\":\"c_bigint\",\"type\":\"BIGINT\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_smallint\",\"type\":\"SMALLINT\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_tinyint\",\"type\":\"TINYINT\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_smallint\",\"type\":\"INTEGER\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_tinyint\",\"type\":\"INTEGER\""));
         assertTrue(nodeJson.contains("\"name\":\"c_decimal\",\"type\":\"DECIMAL\""));
         assertTrue(nodeJson.contains("\"name\":\"c_numeric\",\"type\":\"DECIMAL\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_float\",\"type\":\"FLOAT\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_double\",\"type\":\"DOUBLE\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_float\",\"type\":\"DECIMAL\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_double\",\"type\":\"DECIMAL\""));
         assertTrue(nodeJson.contains("\"name\":\"c_varchar\",\"type\":\"VARCHAR\""));
         assertTrue(nodeJson.contains("\"name\":\"c_char\",\"type\":\"CHAR\""));
         assertTrue(nodeJson.contains("\"name\":\"c_text\",\"type\":\"TEXT\""));
         assertTrue(nodeJson.contains("\"name\":\"c_date\",\"type\":\"DATE\""));
         assertTrue(nodeJson.contains("\"name\":\"c_time\",\"type\":\"TIME\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_datetime\",\"type\":\"DATETIME\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_timestamp\",\"type\":\"DATETIME\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_datetime\",\"type\":\"TIMESTAMP\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_timestamp\",\"type\":\"TIMESTAMP\""));
         assertTrue(nodeJson.contains("\"name\":\"c_boolean\",\"type\":\"BOOLEAN\""));
         assertTrue(nodeJson.contains("\"name\":\"c_bool\",\"type\":\"BOOLEAN\""));
         assertTrue(nodeJson.contains("\"name\":\"c_unknown\",\"type\":\"VARCHAR\""),
@@ -702,6 +703,40 @@ class DdlServiceCoverageTest {
         order.verify(collaborationService).clearProjectLocks(PROJECT_ID);
         order.verify(collaborationNotifier).lockReleased(first);
         order.verify(collaborationNotifier).lockReleased(second);
+    }
+
+    @Test
+    void testImportDdl_explainsWhyNoTableCouldBeRead() {
+        // Given
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent("CREATE TABLE copy LIKE original;");
+
+        // When
+        DdlImportException exception = assertThrows(DdlImportException.class, () -> ddlService.importDdl(request));
+
+        // Then
+        assertEquals("No CREATE TABLE statement could be read from the script, so the diagram was not changed. "
+                + "Table copy was skipped: it has no column definitions, as in CREATE TABLE ... LIKE or AS SELECT.",
+                exception.getMessage());
+    }
+
+    @Test
+    void testImportDdl_returnsTheCountsAndTheWarnings() {
+        // When
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent("""
+                CREATE TABLE users (id INT PRIMARY KEY, data JSON);
+                CREATE TABLE orders (id INT PRIMARY KEY, user_id INT REFERENCES users (id));
+                """);
+        ImportDdlResponseDTO response = ddlService.importDdl(request);
+
+        // Then
+        assertEquals(2, response.getTables());
+        assertEquals(1, response.getRelationships());
+        assertEquals(List.of("Column users.data: type JSON is not supported and was imported as VARCHAR."),
+                response.getWarnings());
     }
 
     @Test

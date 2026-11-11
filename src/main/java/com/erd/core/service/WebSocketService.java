@@ -74,10 +74,20 @@ public class WebSocketService {
         String projectId = patch.getProjectId().toString();
 
         try {
-            synchronized (projectMonitors.computeIfAbsent(projectId, id -> new Object())) {
+            synchronized (monitorOf(projectId)) {
                 Diagram diagram = diagramRepository.findByProjectId(projectId)
                         .orElseGet(() -> new Diagram("[]", "[]", projectId));
                 DiagramDataResponseDTO current = diagramMapper.toResponseDto(diagram);
+
+                if (patch.getBaseRevision() != null && patch.getBaseRevision() != diagram.getRevision()) {
+                    // The diagram was replaced after the client computed these changes, so they refer
+                    // to tables that are gone and would bring them back. The client is sent the
+                    // current state, which makes it drop them too.
+                    logger.info("Discarding patch to project {} computed against revision {}; current revision is {}",
+                            projectId, patch.getBaseRevision(), diagram.getRevision());
+                    sendToTopic(current);
+                    return;
+                }
 
                 List<NodeDataDTO> nodes = merge(current.getNodeDataArray(), patch.getUpsertNodes(),
                         patch.getRemovedNodeIds(), node -> node.getId() == null ? null : node.getId().toString());
@@ -94,6 +104,30 @@ public class WebSocketService {
         } catch (Exception e) {
             logger.error("Error applying diagram patch to project {}", projectId, e);
         }
+    }
+
+    /**
+     * Replaces the whole diagram of a project, as an import does, and sends the new state to its
+     * collaborators. It runs under the same monitor as {@link #applyPatch}, so a patch can neither
+     * interleave with it nor overwrite it, and it increments the revision, so patches computed
+     * against the previous content are discarded instead of merged into the new one.
+     */
+    public DiagramDataResponseDTO replaceDiagram(String projectId, List<NodeDataDTO> nodes, List<LinkDataDTO> links) {
+        synchronized (monitorOf(projectId)) {
+            Diagram diagram = diagramRepository.findByProjectId(projectId)
+                    .orElseGet(() -> new Diagram("[]", "[]", projectId));
+            diagram.setNodeData(diagramMapper.convertToSting(nodes));
+            diagram.setLinkData(diagramMapper.convertToSting(links));
+            diagram.setRevision(diagram.getRevision() + 1);
+
+            DiagramDataResponseDTO saved = diagramMapper.toResponseDto(diagramRepository.save(diagram));
+            sendToTopic(saved);
+            return saved;
+        }
+    }
+
+    private Object monitorOf(String projectId) {
+        return projectMonitors.computeIfAbsent(projectId, id -> new Object());
     }
 
     // Replaces the elements whose id appears in the upserts, appends the new ones and drops the

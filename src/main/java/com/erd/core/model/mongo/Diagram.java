@@ -18,6 +18,10 @@ public class Diagram {
 
     private String projectId;
 
+    // Incremented each time the whole diagram is replaced, as an import does. A patch carries the
+    // revision it was computed against, so one built on the replaced content can be told apart.
+    private long revision;
+
     public Diagram() {
         this.id = UUID.randomUUID();
     }
@@ -55,5 +59,13 @@ public class Diagram {
 
     public void setProjectId(String projectId) {
         this.projectId = projectId;
+    }
+
+    public long getRevision() {
+        return revision;
+    }
+
+    public void setRevision(long revision) {
+        this.revision = revision;
     }
 }

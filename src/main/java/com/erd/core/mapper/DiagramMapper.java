@@ -51,6 +51,7 @@ public class DiagramMapper {
         DiagramDataResponseDTO responseDto = new DiagramDataResponseDTO(nodeDataArray, linkDataArray);
         // The broadcast topic is derived from it: without it every update went to /topic/diagram/null.
         responseDto.setProjectId(diagram.getProjectId());
+        responseDto.setRevision(diagram.getRevision());
         return responseDto;
     }
 

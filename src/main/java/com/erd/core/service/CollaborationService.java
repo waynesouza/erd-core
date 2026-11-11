@@ -96,10 +96,15 @@ public class CollaborationService {
         return released;
     }
 
-    public void clearProjectLocks(String projectId) {
+    // Returns the locks it dropped so the caller can tell the other collaborators about them.
+    public List<EntityLockDTO> clearProjectLocks(String projectId) {
         logger.info("Clearing all locks for project {}", projectId);
 
-        entityLocks.entrySet().removeIf(entry -> entry.getValue().getProjectId().equals(projectId));
+        List<EntityLockDTO> released = entityLocks.values().stream()
+                .filter(lock -> lock.getProjectId().equals(projectId))
+                .toList();
+        released.forEach(lock -> entityLocks.remove(lock.getEntityId(), lock));
+        return released;
     }
 
     @Scheduled(fixedRate = 120000) // Run every 2 minutes

@@ -310,86 +310,139 @@ class DdlServiceCoverageTest {
     // ------------------------------------------------------------------
 
     @Test
-    void testExportDdl_throwsWhenTheLinkSourceTableIsMissing() {
+    void testExportDdl_commentsOutALinkWhoseSourceTableIsMissing() {
         // Given
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("ghost");
-        link.setTo("users");
-
-        when(diagramService.getDiagramByProjectId(PROJECT_ID))
-                .thenReturn(diagram(List.of(node("users", List.of(item("id", "INTEGER")))), List.of(link)));
+        LinkDataDTO link = link("ghost", "users", null);
 
         // When
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> ddlService.exportDdl(PROJECT_ID));
+        String ddl = exportOf(diagram(List.of(node("users", List.of(pk("id")))), List.of(link)));
 
-        // Then
-        assertEquals("Failed to generate DDL", exception.getMessage());
-        assertTrue(exception.getCause().getMessage().contains("Table not found: ghost"));
+        // Then - one dangling link must not make the whole export fail
+        assertTrue(ddl.contains("CREATE TABLE users"));
+        assertTrue(ddl.contains("-- Relationship ghost -> users was not exported: one of its tables is not in the diagram."));
+        assertFalse(ddl.contains("ALTER TABLE"));
     }
 
     @Test
-    void testExportDdl_throwsWhenTheLinkTargetTableIsMissing() {
+    void testExportDdl_commentsOutALinkWhoseTargetTableIsMissing() {
         // Given
-        ItemDTO fk = item("ghost_id", "INTEGER");
-        fk.setFk(true);
-
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("orders");
-        link.setTo("ghosts");
-        link.setFromColumn("ghost_id");
-
-        when(diagramService.getDiagramByProjectId(PROJECT_ID))
-                .thenReturn(diagram(List.of(node("orders", List.of(fk))), List.of(link)));
+        LinkDataDTO link = link("orders", "ghosts", "ghost_id");
 
         // When
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> ddlService.exportDdl(PROJECT_ID));
+        String ddl = exportOf(diagram(List.of(node("orders", List.of(pk("id"), fk("ghost_id")))), List.of(link)));
 
         // Then
-        assertTrue(exception.getCause().getMessage().contains("Table not found: ghosts"));
+        assertTrue(ddl.contains("-- Relationship orders -> ghosts was not exported: one of its tables is not in the diagram."));
     }
 
     @Test
-    void testExportDdl_fallsBackToTheDefaultColumnNameWhenNoForeignKeyMatches() {
-        // Given - a blank fromColumn forces the heuristic, and no FK column matches the target name
-        ItemDTO unrelatedFk = item("category_ref", "INTEGER");
-        unrelatedFk.setFk(true);
-
-        ItemDTO usersId = item("id", "INTEGER");
-        usersId.setPk(true);
-
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("orders");
-        link.setTo("users");
-        link.setFromColumn("");
+    void testExportDdl_commentsOutALinkWithoutAForeignKeyColumnInsteadOfInventingOne() {
+        // Given - a blank fromColumn forces the heuristic, and no FK column matches either table
+        LinkDataDTO link = link("orders", "users", "");
 
         // When
         String ddl = exportOf(diagram(
-                List.of(node("orders", List.of(unrelatedFk)), node("users", List.of(usersId))),
+                List.of(node("orders", List.of(pk("id"), fk("category_ref"))), node("users", List.of(pk("id")))),
                 List.of(link)));
 
-        // Then
-        assertTrue(ddl.contains("FOREIGN KEY (users_id) REFERENCES users(id)"),
-                "Without a stored or matching FK column the generator falls back to <table>_id");
+        // Then - users_id does not exist, so a statement using it would fail in MySQL
+        assertTrue(ddl.contains("-- Relationship orders -> users was not exported: no foreign key column was found in either table."));
+        assertFalse(ddl.contains("users_id"));
     }
 
     @Test
-    void testExportDdl_fallsBackToIdWhenTheTargetTableHasNoPrimaryKey() {
+    void testExportDdl_commentsOutALinkToATableWithoutAPrimaryKey() {
         // Given
-        ItemDTO fk = item("users_id", "INTEGER");
-        fk.setFk(true);
-
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("orders");
-        link.setTo("users");
-        link.setFromColumn("users_id");
+        LinkDataDTO link = link("orders", "users", "users_id");
 
         // When
         String ddl = exportOf(diagram(
-                List.of(node("orders", List.of(fk)), node("users", List.of(item("name", "VARCHAR")))),
+                List.of(node("orders", List.of(fk("users_id"))), node("users", List.of(item("name", "VARCHAR")))),
                 List.of(link)));
 
         // Then
-        assertTrue(ddl.contains("REFERENCES users(id)"));
+        assertTrue(ddl.contains("-- Relationship orders -> users was not exported: table users has no primary key."));
+        assertFalse(ddl.contains("REFERENCES users(id)"));
+    }
+
+    @Test
+    void testExportDdl_usesTheRecordedColumnEvenWhenItIsNotNamedAfterTheTarget() {
+        // Given
+        LinkDataDTO link = link("orders", "users", "buyer");
+
+        // When
+        String ddl = exportOf(diagram(
+                List.of(node("orders", List.of(pk("id"), item("buyer", "INTEGER"))), node("users", List.of(pk("id")))),
+                List.of(link)));
+
+        // Then
+        assertTrue(ddl.contains("ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (buyer) REFERENCES users(id);"));
+    }
+
+    @Test
+    void testExportDdl_fallsBackToTheNamingHeuristicWhenTheRecordedColumnWasRenamed() {
+        // Given - the link still names the column the editor created, which was renamed afterwards
+        LinkDataDTO link = link("orders", "users", "users_id");
+
+        // When
+        String ddl = exportOf(diagram(
+                List.of(node("orders", List.of(pk("id"), fk("user_id"))), node("users", List.of(pk("id")))),
+                List.of(link)));
+
+        // Then
+        assertTrue(ddl.contains("FOREIGN KEY (user_id) REFERENCES users(id);"));
+    }
+
+    @Test
+    void testExportDdl_putsTheKeyOnTheTargetWhenOnlyTheTargetHoldsTheColumn() {
+        // Given - the first link of a many-to-many relationship, as the editor used to draw it:
+        // from the entity to the intermediary table, which holds the foreign key
+        NodeDataDTO students = node("students", List.of(pk("id")));
+        NodeDataDTO courses = node("courses", List.of(pk("id")));
+        NodeDataDTO studentsCourses = node("students_courses", List.of(fk("students_id"), fk("courses_id")));
+
+        // When
+        String ddl = exportOf(diagram(List.of(students, courses, studentsCourses), List.of(
+                link("students", "students_courses", null),
+                link("students_courses", "courses", null))));
+
+        // Then
+        assertTrue(ddl.contains("ALTER TABLE students_courses ADD CONSTRAINT fk_students_courses_students "
+                + "FOREIGN KEY (students_id) REFERENCES students(id);"));
+        assertTrue(ddl.contains("ALTER TABLE students_courses ADD CONSTRAINT fk_students_courses_courses "
+                + "FOREIGN KEY (courses_id) REFERENCES courses(id);"));
+        assertFalse(ddl.contains("ALTER TABLE students "));
+    }
+
+    @Test
+    void testExportDdl_writesAKeyReachedByTwoLinksOnlyOnce() {
+        // Given - two links that resolve to the same foreign key
+        NodeDataDTO orders = node("orders", List.of(pk("id"), fk("user_id")));
+        NodeDataDTO users = node("users", List.of(pk("id")));
+
+        // When
+        String ddl = exportOf(diagram(List.of(orders, users), List.of(
+                link("orders", "users", "user_id"),
+                link("users", "orders", null))));
+
+        // Then
+        String statement = "ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users(id);";
+        assertEquals(ddl.indexOf(statement), ddl.lastIndexOf(statement));
+    }
+
+    @Test
+    void testExportDdl_skipsTablesWithoutAKeyAndColumnsWithoutAName() {
+        // Given - malformed entries the generator must step over while looking for the key
+        NodeDataDTO unnamedTable = node(null, List.of(pk("id")));
+        ItemDTO unnamedColumn = fk(null);
+        NodeDataDTO orders = node("orders", List.of(pk("id"), unnamedColumn, fk("user_id")));
+        NodeDataDTO users = node("users", List.of(pk("id")));
+
+        // When
+        String ddl = exportOf(diagram(List.of(unnamedTable, orders, users), List.of(link("orders", "users", null))));
+
+        // Then
+        assertTrue(ddl.contains("FOREIGN KEY (user_id) REFERENCES users(id);"));
     }
 
     // ------------------------------------------------------------------

@@ -15,9 +15,11 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -103,10 +105,15 @@ public class DdlService {
                 ddl.append("\n\n");
             }
             
-            // Generate ALTER TABLE statements for foreign keys
+            // Generate ALTER TABLE statements for foreign keys. Two links can resolve to the same
+            // key, so each statement is written once.
             if (linkDataList != null && !linkDataList.isEmpty()) {
+                Set<String> statements = new LinkedHashSet<>();
                 for (LinkDataDTO linkData : linkDataList) {
-                    ddl.append(generateForeignKeyStatement(linkData, nodeDataList));
+                    statements.add(generateForeignKeyStatement(linkData, nodeDataList));
+                }
+                for (String statement : statements) {
+                    ddl.append(statement);
                     ddl.append("\n\n");
                 }
             }
@@ -163,43 +170,75 @@ public class DdlService {
         return sql.toString();
     }
     
+    /**
+     * Writes the foreign key a link stands for. The key lives in the table that holds the column,
+     * which is normally the link's source; links drawn before the editor recorded that column may
+     * point the other way, as the first link of a many-to-many relationship did, so the target is
+     * searched as well. A link that resolves to no column or to a table without a primary key
+     * becomes a comment: an invented column would make the whole script fail in MySQL.
+     */
     private String generateForeignKeyStatement(LinkDataDTO linkData, List<NodeDataDTO> nodeDataList) {
-        NodeDataDTO fromTable = nodeDataList.stream()
-            .filter(node -> node.getKey().equals(linkData.getFrom()))
-            .findFirst()
-            .orElseThrow(() -> new RuntimeException("Table not found: " + linkData.getFrom()));
-
-        // Prefer the FK column stored during import; fall back to heuristic for manually-created links
-        String fkColumn;
-        if (linkData.getFromColumn() != null && !linkData.getFromColumn().isEmpty()) {
-            fkColumn = linkData.getFromColumn();
-        } else {
-            String targetSingular = linkData.getTo().toLowerCase().replaceAll("s$", "");
-            fkColumn = fromTable.getItems().stream()
-                .filter(item -> Boolean.TRUE.equals(item.getFk()) &&
-                        item.getName().toLowerCase().contains(targetSingular))
-                .map(ItemDTO::getName)
-                .findFirst()
-                .orElse(linkData.getTo() + "_id");
+        NodeDataDTO fromTable = findTable(nodeDataList, linkData.getFrom());
+        NodeDataDTO toTable = findTable(nodeDataList, linkData.getTo());
+        if (fromTable == null || toTable == null) {
+            return skippedRelationship(linkData, "one of its tables is not in the diagram");
         }
 
-        NodeDataDTO toTable = nodeDataList.stream()
-            .filter(node -> node.getKey().equals(linkData.getTo()))
-            .findFirst()
-            .orElseThrow(() -> new RuntimeException("Table not found: " + linkData.getTo()));
+        NodeDataDTO holder = fromTable;
+        NodeDataDTO referenced = toTable;
+        String fkColumn = foreignKeyColumn(fromTable, toTable, linkData.getFromColumn());
+        if (fkColumn == null) {
+            holder = toTable;
+            referenced = fromTable;
+            fkColumn = foreignKeyColumn(toTable, fromTable, null);
+        }
+        if (fkColumn == null) {
+            return skippedRelationship(linkData, "no foreign key column was found in either table");
+        }
 
-        String pkColumn = toTable.getItems().stream()
+        String pkColumn = itemsOf(referenced).stream()
             .filter(item -> Boolean.TRUE.equals(item.getPk()))
             .map(ItemDTO::getName)
             .findFirst()
-            .orElse("id");
+            .orElse(null);
+        if (pkColumn == null) {
+            return skippedRelationship(linkData, "table " + referenced.getKey() + " has no primary key");
+        }
 
         return String.format("ALTER TABLE %s ADD CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s);",
-            linkData.getFrom(), linkData.getFrom(), linkData.getTo(), fkColumn, linkData.getTo(), pkColumn);
+            holder.getKey(), holder.getKey(), referenced.getKey(), fkColumn, referenced.getKey(), pkColumn);
+    }
+
+    // The column of `holder` that references `referenced`: the one recorded on the link when it is
+    // still in the table, otherwise a foreign key column named after the referenced table.
+    private String foreignKeyColumn(NodeDataDTO holder, NodeDataDTO referenced, String recordedColumn) {
+        List<ItemDTO> items = itemsOf(holder);
+        if (recordedColumn != null && items.stream().anyMatch(item -> recordedColumn.equals(item.getName()))) {
+            return recordedColumn;
+        }
+
+        String referencedSingular = referenced.getKey().toLowerCase().replaceAll("s$", "");
+        return items.stream()
+            .filter(item -> Boolean.TRUE.equals(item.getFk()) && item.getName() != null
+                    && item.getName().toLowerCase().contains(referencedSingular))
+            .map(ItemDTO::getName)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private static NodeDataDTO findTable(List<NodeDataDTO> nodeDataList, String key) {
+        return nodeDataList.stream()
+            .filter(node -> node.getKey() != null && node.getKey().equals(key))
+            .findFirst()
+            .orElse(null);
     }
     
     private static List<ItemDTO> itemsOf(NodeDataDTO node) {
         return Objects.requireNonNullElse(node.getItems(), List.of());
+    }
+
+    private static String skippedRelationship(LinkDataDTO linkData, String reason) {
+        return String.format("-- Relationship %s -> %s was not exported: %s.", linkData.getFrom(), linkData.getTo(), reason);
     }
 
     private String mapTypeToMySql(String type) {

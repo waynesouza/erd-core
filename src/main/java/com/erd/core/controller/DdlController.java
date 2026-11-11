@@ -1,8 +1,11 @@
 package com.erd.core.controller;
 
+import com.erd.core.dto.error.ErrorMessageDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.exception.DdlImportException;
 import com.erd.core.service.DdlService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -12,6 +15,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
@@ -28,10 +33,14 @@ public class DdlController {
 
     @PostMapping(value = "/import", consumes = APPLICATION_JSON_VALUE)
     @PreAuthorize("@projectSecurityService.canUserEditProject(#requestDto.projectId, authentication.name)")
-    public ResponseEntity<Void> importDdl(@RequestBody ImportDdlRequestDTO requestDto) {
+    public ResponseEntity<ErrorMessageDTO> importDdl(@RequestBody ImportDdlRequestDTO requestDto) {
         try {
             ddlService.importDdl(requestDto);
             return ResponseEntity.ok().build();
+        } catch (DdlImportException e) {
+            // The reason is meant for the user, so it goes back in the body.
+            return ResponseEntity.badRequest().body(new ErrorMessageDTO(
+                    HttpStatus.BAD_REQUEST.value(), LocalDateTime.now(), e.getMessage(), "uri=/api/ddl/import"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }

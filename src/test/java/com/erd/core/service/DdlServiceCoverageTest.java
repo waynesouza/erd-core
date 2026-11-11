@@ -3,15 +3,18 @@ package com.erd.core.service;
 import com.erd.core.dto.ItemDTO;
 import com.erd.core.dto.LinkDataDTO;
 import com.erd.core.dto.NodeDataDTO;
+import com.erd.core.dto.collaboration.EntityLockDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.exception.DdlImportException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -19,14 +22,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -43,11 +49,22 @@ class DdlServiceCoverageTest {
     @Mock
     private DiagramService diagramService;
 
+    @Mock
+    private WebSocketService webSocketService;
+
+    @Mock
+    private CollaborationService collaborationService;
+
+    @Mock
+    private CollaborationNotifier collaborationNotifier;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private DdlService ddlService;
 
     @BeforeEach
     void setUp() {
-        ddlService = new DdlService(diagramService, new ObjectMapper());
+        ddlService = new DdlService(diagramService, webSocketService, collaborationService, collaborationNotifier);
     }
 
     // ------------------------------------------------------------------
@@ -97,13 +114,52 @@ class DdlServiceCoverageTest {
 
         ddlService.importDdl(request);
 
-        ArgumentCaptor<String> nodeJson = ArgumentCaptor.forClass(String.class);
-        verify(diagramService).saveOrUpdateDiagram(eqProjectId(), nodeJson.capture(), anyString());
-        return nodeJson.getValue();
+        try {
+            return objectMapper.writeValueAsString(importedNodes());
+        } catch (JsonProcessingException e) {
+            throw new AssertionError(e);
+        }
     }
 
-    private String eqProjectId() {
-        return org.mockito.ArgumentMatchers.eq(PROJECT_ID);
+    @SuppressWarnings("unchecked")
+    private List<NodeDataDTO> importedNodes() {
+        ArgumentCaptor<List<NodeDataDTO>> nodes = ArgumentCaptor.forClass(List.class);
+        verify(webSocketService).replaceDiagram(eq(PROJECT_ID), nodes.capture(), any());
+        return nodes.getValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<LinkDataDTO> importedLinks() {
+        ArgumentCaptor<List<LinkDataDTO>> links = ArgumentCaptor.forClass(List.class);
+        verify(webSocketService).replaceDiagram(eq(PROJECT_ID), any(), links.capture());
+        return links.getValue();
+    }
+
+    private void importScript(String ddl) {
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent(ddl);
+        ddlService.importDdl(request);
+    }
+
+    private ItemDTO pk(String name) {
+        ItemDTO item = item(name, "INTEGER");
+        item.setPk(true);
+        return item;
+    }
+
+    private ItemDTO fk(String name) {
+        ItemDTO item = item(name, "INTEGER");
+        item.setFk(true);
+        return item;
+    }
+
+    private LinkDataDTO link(String from, String to, String fromColumn) {
+        LinkDataDTO link = new LinkDataDTO();
+        link.setFrom(from);
+        link.setTo(to);
+        link.setFromColumn(fromColumn);
+        return link;
     }
 
     // ------------------------------------------------------------------
@@ -465,42 +521,149 @@ class DdlServiceCoverageTest {
                     FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
                 );
                 """;
-        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
-        request.setProjectId(PROJECT_ID);
-        request.setDdlContent(ddl);
 
         // When
-        ddlService.importDdl(request);
+        importScript(ddl);
 
         // Then
-        ArgumentCaptor<String> linkJson = ArgumentCaptor.forClass(String.class);
-        verify(diagramService).saveOrUpdateDiagram(eqProjectId(), anyString(), linkJson.capture());
-        assertEquals("[]", linkJson.getValue(),
+        assertTrue(importedLinks().isEmpty(),
                 "A relationship can only be drawn between two tables of the same diagram");
     }
 
     // ------------------------------------------------------------------
-    // Import - serialisation failure
+    // Import - ALTER TABLE foreign keys, ids and collaboration
     // ------------------------------------------------------------------
 
     @Test
-    void testImportDdl_wrapsSerialisationFailures() throws Exception {
-        // Given
-        ObjectMapper failingMapper = org.mockito.Mockito.mock(ObjectMapper.class);
-        when(failingMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("boom") { });
-        DdlService serviceWithFailingMapper = new DdlService(diagramService, failingMapper);
+    void testImportDdl_readsForeignKeysDeclaredWithAlterTable() {
+        // Given - the layout the export writes: tables first, keys afterwards
+        String ddl = """
+                CREATE TABLE users (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    PRIMARY KEY (id)
+                );
 
-        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
-        request.setProjectId(PROJECT_ID);
-        request.setDdlContent("CREATE TABLE users (id INT PRIMARY KEY);");
+                CREATE TABLE orders (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    buyer INT NOT NULL,
+                    PRIMARY KEY (id)
+                );
+
+                ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (buyer) REFERENCES users(id);
+                """;
 
         // When
-        RuntimeException exception =
-                assertThrows(RuntimeException.class, () -> serviceWithFailingMapper.importDdl(request));
+        importScript(ddl);
 
         // Then
-        assertEquals("Failed to import DDL", exception.getMessage());
-        verify(diagramService, never()).saveOrUpdateDiagram(anyString(), anyString(), anyString());
+        List<LinkDataDTO> links = importedLinks();
+        assertEquals(1, links.size());
+        assertEquals("orders", links.get(0).getFrom());
+        assertEquals("users", links.get(0).getTo());
+        assertEquals("buyer", links.get(0).getFromColumn());
+        ItemDTO buyer = importedNodes().get(1).getItems().get(1);
+        assertTrue(buyer.getFk(), "A column used by a foreign key is a foreign key whatever its name");
+    }
+
+    @Test
+    void testImportDdl_readsAnAlterTableWithoutAConstraintName() {
+        // Given
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                CREATE TABLE orders (id INT PRIMARY KEY, user_id INT);
+                ALTER TABLE orders ADD FOREIGN KEY (user_id) REFERENCES users(id);
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then
+        assertEquals(1, importedLinks().size());
+    }
+
+    @Test
+    void testImportDdl_ignoresAnAlterTableOnATableTheScriptDoesNotCreate() {
+        // Given
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users(id);
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then
+        assertTrue(importedLinks().isEmpty());
+    }
+
+    @Test
+    void testImportDdl_turnsAKeyDeclaredTwiceIntoOneLink() {
+        // Given - the same key inside the table and again in an ALTER TABLE
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                CREATE TABLE orders (
+                    id INT PRIMARY KEY,
+                    user_id INT,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                );
+                ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users(id);
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then
+        assertEquals(1, importedLinks().size());
+    }
+
+    @Test
+    void testImportDdl_givesEveryLinkAnId() {
+        // Given
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                CREATE TABLE orders (id INT PRIMARY KEY, user_id INT, FOREIGN KEY (user_id) REFERENCES users(id));
+                CREATE TABLE reviews (id INT PRIMARY KEY, user_id INT, FOREIGN KEY (user_id) REFERENCES users(id));
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then - a link without an id cannot be addressed by a patch, so deleting it would not stick
+        List<String> ids = importedLinks().stream().map(LinkDataDTO::getId).toList();
+        assertEquals(2, ids.size());
+        ids.forEach(id -> assertDoesNotThrow(() -> UUID.fromString(id)));
+        assertEquals(2, ids.stream().distinct().count());
+    }
+
+    @Test
+    void testImportDdl_releasesTheProjectLocksAndAnnouncesEachOne() {
+        // Given
+        EntityLockDTO first = new EntityLockDTO("table-a", "ada@example.com", "ada@example.com", "Ada", null, PROJECT_ID);
+        EntityLockDTO second = new EntityLockDTO("table-b", "bob@example.com", "bob@example.com", "Bob", null, PROJECT_ID);
+        when(collaborationService.clearProjectLocks(PROJECT_ID)).thenReturn(List.of(first, second));
+
+        // When
+        importScript("CREATE TABLE users (id INT PRIMARY KEY);");
+
+        // Then - the diagram is replaced before the locks of its old tables are released
+        InOrder order = inOrder(webSocketService, collaborationService, collaborationNotifier);
+        order.verify(webSocketService).replaceDiagram(eq(PROJECT_ID), any(), any());
+        order.verify(collaborationService).clearProjectLocks(PROJECT_ID);
+        order.verify(collaborationNotifier).lockReleased(first);
+        order.verify(collaborationNotifier).lockReleased(second);
+    }
+
+    @Test
+    void testImportDdl_rejectsAMissingScriptWithoutTouchingTheDiagram() {
+        // Given
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent(null);
+
+        // When & Then
+        assertThrows(DdlImportException.class, () -> ddlService.importDdl(request));
+        verify(webSocketService, never()).replaceDiagram(any(), any(), any());
+        verifyNoInteractions(collaborationService, collaborationNotifier);
     }
 
 }

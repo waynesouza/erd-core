@@ -12,6 +12,7 @@ import com.erd.core.repository.TeamRepository;
 import com.erd.core.repository.UserRepository;
 import com.erd.core.repository.mongo.DiagramRepository;
 import com.erd.core.service.JwtService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,10 @@ import org.springframework.web.socket.sockjs.client.SockJsClient;
 import org.springframework.web.socket.sockjs.client.WebSocketTransport;
 
 import java.lang.reflect.Type;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -233,6 +238,55 @@ class RealTimeChannelIntegrationTest {
                         "key", tableName,
                         "items", List.of(),
                         "location", Map.of("x", "10", "y", "20"))));
+    }
+
+    @Test
+    void testAnImportReachesTheCollaboratorsAndDiscardsTheirStaleChanges() throws Exception {
+        // Given - the owner has the diagram open while the editor imports a script over HTTP
+        AtomicReference<Diagram> stored = new AtomicReference<>();
+        when(diagramRepository.findByProjectId(project.getId().toString()))
+                .thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(diagramRepository.save(any(Diagram.class))).thenAnswer(invocation -> {
+            stored.set(invocation.getArgument(0));
+            return invocation.getArgument(0);
+        });
+        StompSession ownerSession = connect(owner);
+        BlockingQueue<DiagramDataResponseDTO> ownerInbox = subscribeToDiagram(ownerSession);
+
+        // When
+        HttpResponse<String> response = importAs(editor, "CREATE TABLE customers (id INT PRIMARY KEY);");
+
+        // Then - the import reaches the owner without a reload
+        assertEquals(200, response.statusCode());
+        DiagramDataResponseDTO imported = ownerInbox.poll(5, TimeUnit.SECONDS);
+        assertNotNull(imported, "The owner should receive the imported diagram");
+        assertEquals(List.of("customers"), imported.getNodeDataArray().stream().map(node -> node.getKey()).toList());
+        assertEquals(1L, imported.getRevision());
+
+        // When - a patch the owner computed before the import arrives afterwards
+        Map<String, Object> stalePatch = new java.util.HashMap<>(patchWithTable("table_from_before_the_import"));
+        stalePatch.put("baseRevision", 0);
+        ownerSession.send("/app/patch", stalePatch);
+
+        // Then - it is not merged into the imported diagram, and the owner is sent the current state
+        DiagramDataResponseDTO answer = ownerInbox.poll(5, TimeUnit.SECONDS);
+        assertNotNull(answer);
+        assertEquals(List.of("customers"), answer.getNodeDataArray().stream().map(node -> node.getKey()).toList());
+        assertEquals(1L, stored.get().getRevision());
+    }
+
+    private HttpResponse<String> importAs(User user, String script) throws Exception {
+        String cookie = jwtService.generateTokenCookie(user).toString().split(";")[0];
+        String body = new ObjectMapper().writeValueAsString(
+                Map.of("projectId", project.getId().toString(), "ddlContent", script));
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/ddl/import"))
+                .header("Content-Type", "application/json")
+                .header("Cookie", cookie)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
     }
 
     @Test

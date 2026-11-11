@@ -2,6 +2,7 @@ package com.erd.core.controller;
 
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.exception.DdlImportException;
 import com.erd.core.service.DdlService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,6 +75,25 @@ class DdlControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requestDto)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testImportDdl_ReturnsTheReasonWhenTheScriptCannotBeImported() throws Exception {
+        // Given
+        ImportDdlRequestDTO requestDto = new ImportDdlRequestDTO();
+        requestDto.setProjectId("test-project");
+        requestDto.setDdlContent("SELECT 1;");
+
+        doThrow(new DdlImportException("No CREATE TABLE statement could be read from the script."))
+                .when(ddlService).importDdl(any(ImportDdlRequestDTO.class));
+
+        // When & Then - the client shows this message instead of a generic error
+        mockMvc.perform(post("/api/ddl/import")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(requestDto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.statusCode").value(400))
+                .andExpect(jsonPath("$.message").value("No CREATE TABLE statement could be read from the script."));
     }
 
     @Test

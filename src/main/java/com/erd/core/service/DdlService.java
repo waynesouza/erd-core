@@ -7,15 +7,17 @@ import com.erd.core.dto.NodeDataDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.erd.core.exception.DdlImportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,12 +27,30 @@ public class DdlService {
 
     private static final Logger logger = LoggerFactory.getLogger(DdlService.class);
 
-    private final DiagramService diagramService;
-    private final ObjectMapper objectMapper;
+    private static final Pattern TABLE_PATTERN = Pattern.compile(
+        "CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)\\s*\\((.*?)\\);",
+        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
+    private static final Pattern ALTER_TABLE_PATTERN = Pattern.compile(
+        "ALTER\\s+TABLE\\s+(\\w+)\\s+(.*?);",
+        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
+    private static final Pattern FOREIGN_KEY_PATTERN = Pattern.compile(
+        "FOREIGN\\s+KEY\\s*\\(([^)]+)\\)\\s+REFERENCES\\s+(\\w+)\\s*\\(([^)]+)\\)",
+        Pattern.CASE_INSENSITIVE
+    );
 
-    public DdlService(DiagramService diagramService, ObjectMapper objectMapper) {
+    private final DiagramService diagramService;
+    private final WebSocketService webSocketService;
+    private final CollaborationService collaborationService;
+    private final CollaborationNotifier collaborationNotifier;
+
+    public DdlService(DiagramService diagramService, WebSocketService webSocketService,
+                      CollaborationService collaborationService, CollaborationNotifier collaborationNotifier) {
         this.diagramService = diagramService;
-        this.objectMapper = objectMapper;
+        this.webSocketService = webSocketService;
+        this.collaborationService = collaborationService;
+        this.collaborationNotifier = collaborationNotifier;
     }
 
     public ExportDdlResponseDTO exportDdl(String projectId) {
@@ -43,25 +63,24 @@ public class DdlService {
     }
 
     public void importDdl(ImportDdlRequestDTO requestDto) {
-        logger.info("Importing DDL for projectId: {}", requestDto.getProjectId());
+        String projectId = requestDto.getProjectId();
+        logger.info("Importing DDL for projectId: {}", projectId);
+        String ddlContent = Objects.requireNonNullElse(requestDto.getDdlContent(), "");
         
-        List<NodeDataDTO> nodeDataList = parseDdlToNodeData(requestDto.getDdlContent());
-        List<LinkDataDTO> linkDataList = parseDdlToLinkData(requestDto.getDdlContent(), nodeDataList);
-        
-        // Convert to JSON strings as expected by the Diagram entity
-        try {
-            String nodeDataJson = objectMapper.writeValueAsString(nodeDataList);
-            String linkDataJson = objectMapper.writeValueAsString(linkDataList);
-            
-            // Save or update diagram
-            diagramService.saveOrUpdateDiagram(requestDto.getProjectId(), nodeDataJson, linkDataJson);
-            
-            logger.info("DDL import completed successfully for projectId: {}", requestDto.getProjectId());
-            
-        } catch (Exception e) {
-            logger.error("Error processing DDL import", e);
-            throw new RuntimeException("Failed to import DDL", e);
+        List<NodeDataDTO> nodeDataList = parseDdlToNodeData(ddlContent);
+        if (nodeDataList.isEmpty()) {
+            // Saving the empty result would wipe the diagram while the user is told the import worked.
+            throw new DdlImportException(
+                    "No CREATE TABLE statement could be read from the script, so the diagram was not changed.");
         }
+        List<LinkDataDTO> linkDataList = parseDdlToLinkData(ddlContent, nodeDataList);
+        
+        webSocketService.replaceDiagram(projectId, nodeDataList, linkDataList);
+        // The tables these locks protected are gone. Releasing them, and saying so, lets the
+        // collaborators who held them close their editors instead of saving tables that no longer exist.
+        collaborationService.clearProjectLocks(projectId).forEach(collaborationNotifier::lockReleased);
+            
+        logger.info("DDL import completed successfully for projectId: {}", projectId);
     }
 
     private String generateDdlFromDiagram(DiagramDataResponseDTO diagramData) {
@@ -179,6 +198,10 @@ public class DdlService {
             linkData.getFrom(), linkData.getFrom(), linkData.getTo(), fkColumn, linkData.getTo(), pkColumn);
     }
     
+    private static List<ItemDTO> itemsOf(NodeDataDTO node) {
+        return Objects.requireNonNullElse(node.getItems(), List.of());
+    }
+
     private String mapTypeToMySql(String type) {
         return switch (type.toUpperCase()) {
             case "INTEGER", "INT" -> "INT";
@@ -202,12 +225,7 @@ public class DdlService {
     private List<NodeDataDTO> parseDdlToNodeData(String ddlContent) {
         List<NodeDataDTO> nodeDataList = new ArrayList<>();
 
-        Pattern tablePattern = Pattern.compile(
-            "CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)\\s*\\((.*?)\\);",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-        );
-        
-        Matcher tableMatcher = tablePattern.matcher(ddlContent);
+        Matcher tableMatcher = TABLE_PATTERN.matcher(ddlContent);
         int xOffset = 0;
         
         while (tableMatcher.find()) {
@@ -345,46 +363,58 @@ public class DdlService {
         return parts;
     }
 
+    // Foreign keys come from the table bodies and, as the export writes them, from ALTER TABLE
+    // statements after the tables. A key declared in both places becomes a single link.
     private List<LinkDataDTO> parseDdlToLinkData(String ddlContent, List<NodeDataDTO> nodeDataList) {
-        List<LinkDataDTO> linkDataList = new ArrayList<>();
-        Map<String, String> tableMap = new HashMap<>();
-
+        Map<String, NodeDataDTO> tables = new HashMap<>();
         for (NodeDataDTO nodeData : nodeDataList) {
-            tableMap.put(nodeData.getKey(), nodeData.getKey());
+            tables.put(nodeData.getKey(), nodeData);
         }
+        Map<String, LinkDataDTO> links = new LinkedHashMap<>();
 
-        Pattern tablePattern = Pattern.compile(
-            "CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)\\s*\\((.*?)\\);",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-        );
-        Pattern fkPattern = Pattern.compile(
-            "FOREIGN\\s+KEY\\s*\\(([^)]+)\\)\\s+REFERENCES\\s+(\\w+)\\s*\\(([^)]+)\\)",
-            Pattern.CASE_INSENSITIVE
-        );
-
-        Matcher tableMatcher = tablePattern.matcher(ddlContent);
+        Matcher tableMatcher = TABLE_PATTERN.matcher(ddlContent);
         while (tableMatcher.find()) {
-            // tableMap was built from this very pattern over this very content, so every
-            // table matched here is guaranteed to be present in it.
-            String sourceTable = tableMatcher.group(1).trim();
-            String tableBody   = tableMatcher.group(2);
-
-            Matcher fkMatcher = fkPattern.matcher(tableBody);
-            while (fkMatcher.find()) {
-                String fkColumnName  = fkMatcher.group(1).trim();
-                String referencedTable = fkMatcher.group(2).trim();
-                if (!tableMap.containsKey(referencedTable)) continue;
-
-                LinkDataDTO linkData = new LinkDataDTO();
-                linkData.setFrom(sourceTable);
-                linkData.setTo(referencedTable);
-                linkData.setText("N:1");
-                linkData.setToText(1);
-                linkData.setFromColumn(fkColumnName);
-                linkDataList.add(linkData);
-            }
+            addForeignKeys(tableMatcher.group(1).trim(), tableMatcher.group(2), tables, links);
+        }
+        Matcher alterMatcher = ALTER_TABLE_PATTERN.matcher(ddlContent);
+        while (alterMatcher.find()) {
+            addForeignKeys(alterMatcher.group(1).trim(), alterMatcher.group(2), tables, links);
         }
 
-        return linkDataList;
+        return new ArrayList<>(links.values());
+    }
+
+    private void addForeignKeys(String sourceTable, String definition, Map<String, NodeDataDTO> tables,
+                                Map<String, LinkDataDTO> links) {
+        NodeDataDTO source = tables.get(sourceTable);
+        if (source == null) {
+            // An ALTER TABLE on a table the script does not create.
+            return;
+        }
+
+        Matcher fkMatcher = FOREIGN_KEY_PATTERN.matcher(definition);
+        while (fkMatcher.find()) {
+            String fkColumnName = fkMatcher.group(1).trim();
+            String referencedTable = fkMatcher.group(2).trim();
+            if (!tables.containsKey(referencedTable)) continue;
+
+            links.computeIfAbsent(sourceTable + "." + fkColumnName + "->" + referencedTable,
+                    key -> newLink(sourceTable, fkColumnName, referencedTable));
+            itemsOf(source).stream()
+                    .filter(item -> fkColumnName.equals(item.getName()))
+                    .forEach(item -> item.setFk(true));
+        }
+    }
+
+    private static LinkDataDTO newLink(String sourceTable, String fkColumnName, String referencedTable) {
+        LinkDataDTO linkData = new LinkDataDTO();
+        // Without an id a client cannot address the link in a patch, so deleting it would not stick.
+        linkData.setId(UUID.randomUUID().toString());
+        linkData.setFrom(sourceTable);
+        linkData.setTo(referencedTable);
+        linkData.setText("N:1");
+        linkData.setToText(1);
+        linkData.setFromColumn(fkColumnName);
+        return linkData;
     }
 }

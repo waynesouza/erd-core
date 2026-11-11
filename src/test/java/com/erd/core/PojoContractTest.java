@@ -22,6 +22,7 @@ import com.erd.core.dto.request.UpdateTeamMemberRequestDTO;
 import com.erd.core.dto.response.AuthenticationResponseDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.dto.response.ImportDdlResponseDTO;
 import com.erd.core.dto.response.ProjectDetailsResponseDTO;
 import com.erd.core.dto.response.ProjectResponseDTO;
 import com.erd.core.dto.response.UserProjectDetailsResponseDTO;
@@ -54,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Contract test for the project's data-carrier classes (DTOs and persistence models).
  * <p>
- * These 30 classes are written by hand (the project uses neither Lombok nor records), so they
+ * These 31 classes are written by hand (the project uses neither Lombok nor records), so they
  * contribute roughly 700 lines of constructors and accessors. Rather than duplicating the same
  * boilerplate assertions across 30 test classes, this test drives each class reflectively:
  * <ol>
@@ -95,6 +96,7 @@ class PojoContractTest {
                 AuthenticationResponseDTO.class,
                 DiagramDataResponseDTO.class,
                 ExportDdlResponseDTO.class,
+                ImportDdlResponseDTO.class,
                 ProjectDetailsResponseDTO.class,
                 ProjectResponseDTO.class,
                 UserProjectDetailsResponseDTO.class,

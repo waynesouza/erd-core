@@ -85,8 +85,8 @@ class DdlServiceTest {
         assertNotNull(result);
         assertEquals(projectId, result.getProjectId());
         assertNotNull(result.getDdlContent());
-        assertTrue(result.getDdlContent().contains("CREATE TABLE table1"));
-        assertTrue(result.getDdlContent().contains("CREATE TABLE table2"));
+        assertTrue(result.getDdlContent().contains("CREATE TABLE `table1`"));
+        assertTrue(result.getDdlContent().contains("CREATE TABLE `table2`"));
         assertTrue(result.getDdlContent().contains("PRIMARY KEY"));
         assertTrue(result.getDdlContent().contains("FOREIGN KEY"));
     }
@@ -109,9 +109,9 @@ class DdlServiceTest {
 
         // Then
         String ddlContent = result.getDdlContent();
-        assertTrue(ddlContent.contains("id INT NOT NULL AUTO_INCREMENT"));
-        assertTrue(ddlContent.contains("table2_id INT NOT NULL"));
-        assertTrue(ddlContent.contains("PRIMARY KEY (id)"));
+        assertTrue(ddlContent.contains("`id` INT NOT NULL AUTO_INCREMENT"));
+        assertTrue(ddlContent.contains("`table2_id` INT NOT NULL"));
+        assertTrue(ddlContent.contains("PRIMARY KEY (`id`)"));
     }
 
     @Test
@@ -256,8 +256,8 @@ class DdlServiceTest {
         assertNotNull(result);
         assertNotNull(result.getDdlContent());
         assertFalse(result.getDdlContent().isEmpty());
-        assertTrue(result.getDdlContent().contains("CREATE TABLE users"));
-        assertTrue(result.getDdlContent().contains("CREATE TABLE orders"));
+        assertTrue(result.getDdlContent().contains("CREATE TABLE `users`"));
+        assertTrue(result.getDdlContent().contains("CREATE TABLE `orders`"));
         assertEquals(projectId, result.getProjectId());
     }
 
@@ -493,9 +493,9 @@ class DdlServiceTest {
         ExportDdlResponseDTO result = ddlService.exportDdl("p1");
         String ddl = result.getDdlContent();
 
-        assertTrue(ddl.contains("FOREIGN KEY (order_id) REFERENCES orders"),
+        assertTrue(ddl.contains("FOREIGN KEY (`order_id`) REFERENCES `orders`"),
                 "Link order_items→orders must use order_id");
-        assertTrue(ddl.contains("FOREIGN KEY (product_id) REFERENCES products"),
+        assertTrue(ddl.contains("FOREIGN KEY (`product_id`) REFERENCES `products`"),
                 "Link order_items→products must use product_id, not order_id");
     }
 

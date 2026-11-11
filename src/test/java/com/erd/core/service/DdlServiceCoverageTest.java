@@ -7,6 +7,7 @@ import com.erd.core.dto.collaboration.EntityLockDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.dto.response.ImportDdlResponseDTO;
 import com.erd.core.exception.DdlImportException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -194,25 +195,25 @@ class DdlServiceCoverageTest {
         String ddl = exportOf(diagram(List.of(node("all_types", items)), List.of()));
 
         // Then
-        assertTrue(ddl.contains("c_integer INT"));
-        assertTrue(ddl.contains("c_int INT"));
-        assertTrue(ddl.contains("c_bigint BIGINT"));
-        assertTrue(ddl.contains("c_smallint SMALLINT"));
-        assertTrue(ddl.contains("c_tinyint TINYINT"));
-        assertTrue(ddl.contains("c_decimal DECIMAL"));
-        assertTrue(ddl.contains("c_numeric DECIMAL"));
-        assertTrue(ddl.contains("c_float FLOAT"));
-        assertTrue(ddl.contains("c_double DOUBLE"));
-        assertTrue(ddl.contains("c_varchar VARCHAR(255)"));
-        assertTrue(ddl.contains("c_char CHAR(1)"));
-        assertTrue(ddl.contains("c_text TEXT"));
-        assertTrue(ddl.contains("c_date DATE"));
-        assertTrue(ddl.contains("c_time TIME"));
-        assertTrue(ddl.contains("c_datetime DATETIME"));
-        assertTrue(ddl.contains("c_timestamp DATETIME"));
-        assertTrue(ddl.contains("c_boolean BOOLEAN"));
-        assertTrue(ddl.contains("c_bool BOOLEAN"));
-        assertTrue(ddl.contains("c_unknown VARCHAR(255)"),
+        assertTrue(ddl.contains("`c_integer` INT"));
+        assertTrue(ddl.contains("`c_int` INT"));
+        assertTrue(ddl.contains("`c_bigint` BIGINT"));
+        assertTrue(ddl.contains("`c_smallint` SMALLINT"));
+        assertTrue(ddl.contains("`c_tinyint` TINYINT"));
+        assertTrue(ddl.contains("`c_decimal` DECIMAL"));
+        assertTrue(ddl.contains("`c_numeric` DECIMAL"));
+        assertTrue(ddl.contains("`c_float` FLOAT"));
+        assertTrue(ddl.contains("`c_double` DOUBLE"));
+        assertTrue(ddl.contains("`c_varchar` VARCHAR(255)"));
+        assertTrue(ddl.contains("`c_char` CHAR(1)"));
+        assertTrue(ddl.contains("`c_text` TEXT"));
+        assertTrue(ddl.contains("`c_date` DATE"));
+        assertTrue(ddl.contains("`c_time` TIME"));
+        assertTrue(ddl.contains("`c_datetime` DATETIME"));
+        assertTrue(ddl.contains("`c_timestamp` DATETIME"));
+        assertTrue(ddl.contains("`c_boolean` BOOLEAN"));
+        assertTrue(ddl.contains("`c_bool` BOOLEAN"));
+        assertTrue(ddl.contains("`c_unknown` VARCHAR(255)"),
                 "An unrecognised type must fall back to VARCHAR(255)");
     }
 
@@ -241,7 +242,7 @@ class DdlServiceCoverageTest {
         String ddl = exportOf(diagram(List.of(users), null));
 
         // Then
-        assertTrue(ddl.contains("CREATE TABLE users"));
+        assertTrue(ddl.contains("CREATE TABLE `users`"));
         assertFalse(ddl.contains("ALTER TABLE"));
     }
 
@@ -273,9 +274,9 @@ class DdlServiceCoverageTest {
         String ddl = exportOf(diagram(List.of(node("users", List.of(id, email))), List.of()));
 
         // Then
-        assertTrue(ddl.contains("id INT NOT NULL AUTO_INCREMENT"));
-        assertTrue(ddl.contains("email VARCHAR(255) DEFAULT 'unknown' UNIQUE"));
-        assertTrue(ddl.contains("PRIMARY KEY (id)"));
+        assertTrue(ddl.contains("`id` INT NOT NULL AUTO_INCREMENT"));
+        assertTrue(ddl.contains("`email` VARCHAR(255) DEFAULT 'unknown' UNIQUE"));
+        assertTrue(ddl.contains("PRIMARY KEY (`id`)"));
     }
 
     @Test
@@ -284,25 +285,23 @@ class DdlServiceCoverageTest {
         String ddl = exportOf(diagram(List.of(node("logs", List.of(item("message", "TEXT")))), List.of()));
 
         // Then
-        assertTrue(ddl.contains("message TEXT\n"));
-        assertFalse(ddl.contains("message TEXT,"));
+        assertTrue(ddl.contains("`message` TEXT\n"));
+        assertFalse(ddl.contains("`message` TEXT,"));
         assertFalse(ddl.contains("PRIMARY KEY"));
     }
 
     @Test
-    void testExportDdl_wrapsGenerationFailures() {
-        // Given - a malformed node (no column list) makes the generator fail
+    void testExportDdl_commentsOutATableWithoutColumns() {
+        // Given - a malformed node (no column list); CREATE TABLE with no column is not valid SQL
         NodeDataDTO broken = new NodeDataDTO();
         broken.setKey("broken");
         broken.setItems(null);
 
-        when(diagramService.getDiagramByProjectId(PROJECT_ID)).thenReturn(diagram(List.of(broken), List.of()));
-
         // When
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> ddlService.exportDdl(PROJECT_ID));
+        String ddl = exportOf(diagram(List.of(broken), List.of()));
 
         // Then
-        assertEquals("Failed to generate DDL", exception.getMessage());
+        assertEquals("-- Table broken was not exported: it has no columns.", ddl);
     }
 
     // ------------------------------------------------------------------
@@ -318,7 +317,7 @@ class DdlServiceCoverageTest {
         String ddl = exportOf(diagram(List.of(node("users", List.of(pk("id")))), List.of(link)));
 
         // Then - one dangling link must not make the whole export fail
-        assertTrue(ddl.contains("CREATE TABLE users"));
+        assertTrue(ddl.contains("CREATE TABLE `users`"));
         assertTrue(ddl.contains("-- Relationship ghost -> users was not exported: one of its tables is not in the diagram."));
         assertFalse(ddl.contains("ALTER TABLE"));
     }
@@ -362,7 +361,7 @@ class DdlServiceCoverageTest {
 
         // Then
         assertTrue(ddl.contains("-- Relationship orders -> users was not exported: table users has no primary key."));
-        assertFalse(ddl.contains("REFERENCES users(id)"));
+        assertFalse(ddl.contains("REFERENCES"));
     }
 
     @Test
@@ -376,7 +375,7 @@ class DdlServiceCoverageTest {
                 List.of(link)));
 
         // Then
-        assertTrue(ddl.contains("ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (buyer) REFERENCES users(id);"));
+        assertTrue(ddl.contains("ALTER TABLE `orders` ADD CONSTRAINT `fk_orders_buyer` FOREIGN KEY (`buyer`) REFERENCES `users` (`id`);"));
     }
 
     @Test
@@ -390,7 +389,7 @@ class DdlServiceCoverageTest {
                 List.of(link)));
 
         // Then
-        assertTrue(ddl.contains("FOREIGN KEY (user_id) REFERENCES users(id);"));
+        assertTrue(ddl.contains("FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);"));
     }
 
     @Test
@@ -407,11 +406,11 @@ class DdlServiceCoverageTest {
                 link("students_courses", "courses", null))));
 
         // Then
-        assertTrue(ddl.contains("ALTER TABLE students_courses ADD CONSTRAINT fk_students_courses_students "
-                + "FOREIGN KEY (students_id) REFERENCES students(id);"));
-        assertTrue(ddl.contains("ALTER TABLE students_courses ADD CONSTRAINT fk_students_courses_courses "
-                + "FOREIGN KEY (courses_id) REFERENCES courses(id);"));
-        assertFalse(ddl.contains("ALTER TABLE students "));
+        assertTrue(ddl.contains("ALTER TABLE `students_courses` ADD CONSTRAINT `fk_students_courses_students_id` "
+                + "FOREIGN KEY (`students_id`) REFERENCES `students` (`id`);"));
+        assertTrue(ddl.contains("ALTER TABLE `students_courses` ADD CONSTRAINT `fk_students_courses_courses_id` "
+                + "FOREIGN KEY (`courses_id`) REFERENCES `courses` (`id`);"));
+        assertFalse(ddl.contains("ALTER TABLE `students` "));
     }
 
     @Test
@@ -426,7 +425,7 @@ class DdlServiceCoverageTest {
                 link("users", "orders", null))));
 
         // Then
-        String statement = "ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users(id);";
+        String statement = "ALTER TABLE `orders` ADD CONSTRAINT `fk_orders_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);";
         assertEquals(ddl.indexOf(statement), ddl.lastIndexOf(statement));
     }
 
@@ -442,7 +441,7 @@ class DdlServiceCoverageTest {
         String ddl = exportOf(diagram(List.of(unnamedTable, orders, users), List.of(link("orders", "users", null))));
 
         // Then
-        assertTrue(ddl.contains("FOREIGN KEY (user_id) REFERENCES users(id);"));
+        assertTrue(ddl.contains("FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);"));
     }
 
     // ------------------------------------------------------------------
@@ -483,19 +482,19 @@ class DdlServiceCoverageTest {
         assertTrue(nodeJson.contains("\"name\":\"c_int\",\"type\":\"INTEGER\""));
         assertTrue(nodeJson.contains("\"name\":\"c_integer\",\"type\":\"INTEGER\""));
         assertTrue(nodeJson.contains("\"name\":\"c_bigint\",\"type\":\"BIGINT\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_smallint\",\"type\":\"SMALLINT\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_tinyint\",\"type\":\"TINYINT\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_smallint\",\"type\":\"INTEGER\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_tinyint\",\"type\":\"INTEGER\""));
         assertTrue(nodeJson.contains("\"name\":\"c_decimal\",\"type\":\"DECIMAL\""));
         assertTrue(nodeJson.contains("\"name\":\"c_numeric\",\"type\":\"DECIMAL\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_float\",\"type\":\"FLOAT\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_double\",\"type\":\"DOUBLE\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_float\",\"type\":\"DECIMAL\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_double\",\"type\":\"DECIMAL\""));
         assertTrue(nodeJson.contains("\"name\":\"c_varchar\",\"type\":\"VARCHAR\""));
         assertTrue(nodeJson.contains("\"name\":\"c_char\",\"type\":\"CHAR\""));
         assertTrue(nodeJson.contains("\"name\":\"c_text\",\"type\":\"TEXT\""));
         assertTrue(nodeJson.contains("\"name\":\"c_date\",\"type\":\"DATE\""));
         assertTrue(nodeJson.contains("\"name\":\"c_time\",\"type\":\"TIME\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_datetime\",\"type\":\"DATETIME\""));
-        assertTrue(nodeJson.contains("\"name\":\"c_timestamp\",\"type\":\"DATETIME\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_datetime\",\"type\":\"TIMESTAMP\""));
+        assertTrue(nodeJson.contains("\"name\":\"c_timestamp\",\"type\":\"TIMESTAMP\""));
         assertTrue(nodeJson.contains("\"name\":\"c_boolean\",\"type\":\"BOOLEAN\""));
         assertTrue(nodeJson.contains("\"name\":\"c_bool\",\"type\":\"BOOLEAN\""));
         assertTrue(nodeJson.contains("\"name\":\"c_unknown\",\"type\":\"VARCHAR\""),
@@ -704,6 +703,40 @@ class DdlServiceCoverageTest {
         order.verify(collaborationService).clearProjectLocks(PROJECT_ID);
         order.verify(collaborationNotifier).lockReleased(first);
         order.verify(collaborationNotifier).lockReleased(second);
+    }
+
+    @Test
+    void testImportDdl_explainsWhyNoTableCouldBeRead() {
+        // Given
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent("CREATE TABLE copy LIKE original;");
+
+        // When
+        DdlImportException exception = assertThrows(DdlImportException.class, () -> ddlService.importDdl(request));
+
+        // Then
+        assertEquals("No CREATE TABLE statement could be read from the script, so the diagram was not changed. "
+                + "Table copy was skipped: it has no column definitions, as in CREATE TABLE ... LIKE or AS SELECT.",
+                exception.getMessage());
+    }
+
+    @Test
+    void testImportDdl_returnsTheCountsAndTheWarnings() {
+        // When
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent("""
+                CREATE TABLE users (id INT PRIMARY KEY, data JSON);
+                CREATE TABLE orders (id INT PRIMARY KEY, user_id INT REFERENCES users (id));
+                """);
+        ImportDdlResponseDTO response = ddlService.importDdl(request);
+
+        // Then
+        assertEquals(2, response.getTables());
+        assertEquals(1, response.getRelationships());
+        assertEquals(List.of("Column users.data: type JSON is not supported and was imported as VARCHAR."),
+                response.getWarnings());
     }
 
     @Test

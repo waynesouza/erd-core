@@ -16,6 +16,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<modelmapper.version>3.2.1</modelmapper.version>
+		<jsqlparser.version>5.3</jsqlparser.version>
 		<jjwt.version>0.12.6</jjwt.version>
 		<jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
 		<pitest-maven.version>1.16.1</pitest-maven.version>
@@ -39,6 +40,19 @@
 			<groupId>org.modelmapper</groupId>
 			<artifactId>modelmapper</artifactId>
 			<version>${modelmapper.version}</version>
+		</dependency>
+		<!-- Parses the CREATE TABLE and ALTER TABLE statements of imported SQL scripts. -->
+		<dependency>
+			<groupId>com.github.jsqlparser</groupId>
+			<artifactId>jsqlparser</artifactId>
+			<version>${jsqlparser.version}</version>
+			<exclusions>
+				<!-- Declared with compile scope by JSqlParser but only used by its benchmarks. -->
+				<exclusion>
+					<groupId>org.openjdk.jmh</groupId>
+					<artifactId>jmh-core</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

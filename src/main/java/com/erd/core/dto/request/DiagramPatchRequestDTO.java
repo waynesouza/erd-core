@@ -18,6 +18,10 @@ public class DiagramPatchRequestDTO implements Serializable {
 
     private UUID projectId;
 
+    // The revision of the state the changes were computed against. Null for clients that predate
+    // revisions, whose patches are applied as before.
+    private Long baseRevision;
+
     private List<NodeDataDTO> upsertNodes = new ArrayList<>();
     private List<String> removedNodeIds = new ArrayList<>();
     private List<LinkDataDTO> upsertLinks = new ArrayList<>();
@@ -29,6 +33,14 @@ public class DiagramPatchRequestDTO implements Serializable {
 
     public void setProjectId(UUID projectId) {
         this.projectId = projectId;
+    }
+
+    public Long getBaseRevision() {
+        return baseRevision;
+    }
+
+    public void setBaseRevision(Long baseRevision) {
+        this.baseRevision = baseRevision;
     }
 
     public List<NodeDataDTO> getUpsertNodes() {

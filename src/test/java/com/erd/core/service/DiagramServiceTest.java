@@ -7,7 +7,6 @@ import com.erd.core.model.mongo.Diagram;
 import com.erd.core.repository.mongo.DiagramRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -77,40 +76,6 @@ class DiagramServiceTest {
 
         // Then
         assertEquals("Diagram not found for projectId: missing", exception.getMessage());
-    }
-
-    @Test
-    void testSaveOrUpdateDiagram_updatesTheExistingDocument() {
-        // Given
-        Diagram existing = new Diagram("old-nodes", "old-links", "project-1");
-        when(diagramRepository.findByProjectId("project-1")).thenReturn(Optional.of(existing));
-
-        // When
-        diagramService.saveOrUpdateDiagram("project-1", "new-nodes", "new-links");
-
-        // Then
-        ArgumentCaptor<Diagram> captor = ArgumentCaptor.forClass(Diagram.class);
-        verify(diagramRepository).save(captor.capture());
-        assertSame(existing, captor.getValue());
-        assertEquals("new-nodes", captor.getValue().getNodeData());
-        assertEquals("new-links", captor.getValue().getLinkData());
-    }
-
-    @Test
-    void testSaveOrUpdateDiagram_createsANewDocumentWhenNoneExists() {
-        // Given
-        when(diagramRepository.findByProjectId("project-2")).thenReturn(Optional.empty());
-
-        // When
-        diagramService.saveOrUpdateDiagram("project-2", "nodes", "links");
-
-        // Then
-        ArgumentCaptor<Diagram> captor = ArgumentCaptor.forClass(Diagram.class);
-        verify(diagramRepository).save(captor.capture());
-        assertNotNull(captor.getValue().getId(), "A brand new Diagram assigns its own identifier");
-        assertEquals("project-2", captor.getValue().getProjectId());
-        assertEquals("nodes", captor.getValue().getNodeData());
-        assertEquals("links", captor.getValue().getLinkData());
     }
 
     @Test

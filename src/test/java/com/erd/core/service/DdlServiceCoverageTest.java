@@ -3,15 +3,18 @@ package com.erd.core.service;
 import com.erd.core.dto.ItemDTO;
 import com.erd.core.dto.LinkDataDTO;
 import com.erd.core.dto.NodeDataDTO;
+import com.erd.core.dto.collaboration.EntityLockDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
+import com.erd.core.exception.DdlImportException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -19,14 +22,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -43,11 +49,22 @@ class DdlServiceCoverageTest {
     @Mock
     private DiagramService diagramService;
 
+    @Mock
+    private WebSocketService webSocketService;
+
+    @Mock
+    private CollaborationService collaborationService;
+
+    @Mock
+    private CollaborationNotifier collaborationNotifier;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private DdlService ddlService;
 
     @BeforeEach
     void setUp() {
-        ddlService = new DdlService(diagramService, new ObjectMapper());
+        ddlService = new DdlService(diagramService, webSocketService, collaborationService, collaborationNotifier);
     }
 
     // ------------------------------------------------------------------
@@ -97,13 +114,52 @@ class DdlServiceCoverageTest {
 
         ddlService.importDdl(request);
 
-        ArgumentCaptor<String> nodeJson = ArgumentCaptor.forClass(String.class);
-        verify(diagramService).saveOrUpdateDiagram(eqProjectId(), nodeJson.capture(), anyString());
-        return nodeJson.getValue();
+        try {
+            return objectMapper.writeValueAsString(importedNodes());
+        } catch (JsonProcessingException e) {
+            throw new AssertionError(e);
+        }
     }
 
-    private String eqProjectId() {
-        return org.mockito.ArgumentMatchers.eq(PROJECT_ID);
+    @SuppressWarnings("unchecked")
+    private List<NodeDataDTO> importedNodes() {
+        ArgumentCaptor<List<NodeDataDTO>> nodes = ArgumentCaptor.forClass(List.class);
+        verify(webSocketService).replaceDiagram(eq(PROJECT_ID), nodes.capture(), any());
+        return nodes.getValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<LinkDataDTO> importedLinks() {
+        ArgumentCaptor<List<LinkDataDTO>> links = ArgumentCaptor.forClass(List.class);
+        verify(webSocketService).replaceDiagram(eq(PROJECT_ID), any(), links.capture());
+        return links.getValue();
+    }
+
+    private void importScript(String ddl) {
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent(ddl);
+        ddlService.importDdl(request);
+    }
+
+    private ItemDTO pk(String name) {
+        ItemDTO item = item(name, "INTEGER");
+        item.setPk(true);
+        return item;
+    }
+
+    private ItemDTO fk(String name) {
+        ItemDTO item = item(name, "INTEGER");
+        item.setFk(true);
+        return item;
+    }
+
+    private LinkDataDTO link(String from, String to, String fromColumn) {
+        LinkDataDTO link = new LinkDataDTO();
+        link.setFrom(from);
+        link.setTo(to);
+        link.setFromColumn(fromColumn);
+        return link;
     }
 
     // ------------------------------------------------------------------
@@ -254,86 +310,139 @@ class DdlServiceCoverageTest {
     // ------------------------------------------------------------------
 
     @Test
-    void testExportDdl_throwsWhenTheLinkSourceTableIsMissing() {
+    void testExportDdl_commentsOutALinkWhoseSourceTableIsMissing() {
         // Given
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("ghost");
-        link.setTo("users");
-
-        when(diagramService.getDiagramByProjectId(PROJECT_ID))
-                .thenReturn(diagram(List.of(node("users", List.of(item("id", "INTEGER")))), List.of(link)));
+        LinkDataDTO link = link("ghost", "users", null);
 
         // When
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> ddlService.exportDdl(PROJECT_ID));
+        String ddl = exportOf(diagram(List.of(node("users", List.of(pk("id")))), List.of(link)));
 
-        // Then
-        assertEquals("Failed to generate DDL", exception.getMessage());
-        assertTrue(exception.getCause().getMessage().contains("Table not found: ghost"));
+        // Then - one dangling link must not make the whole export fail
+        assertTrue(ddl.contains("CREATE TABLE users"));
+        assertTrue(ddl.contains("-- Relationship ghost -> users was not exported: one of its tables is not in the diagram."));
+        assertFalse(ddl.contains("ALTER TABLE"));
     }
 
     @Test
-    void testExportDdl_throwsWhenTheLinkTargetTableIsMissing() {
+    void testExportDdl_commentsOutALinkWhoseTargetTableIsMissing() {
         // Given
-        ItemDTO fk = item("ghost_id", "INTEGER");
-        fk.setFk(true);
-
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("orders");
-        link.setTo("ghosts");
-        link.setFromColumn("ghost_id");
-
-        when(diagramService.getDiagramByProjectId(PROJECT_ID))
-                .thenReturn(diagram(List.of(node("orders", List.of(fk))), List.of(link)));
+        LinkDataDTO link = link("orders", "ghosts", "ghost_id");
 
         // When
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> ddlService.exportDdl(PROJECT_ID));
+        String ddl = exportOf(diagram(List.of(node("orders", List.of(pk("id"), fk("ghost_id")))), List.of(link)));
 
         // Then
-        assertTrue(exception.getCause().getMessage().contains("Table not found: ghosts"));
+        assertTrue(ddl.contains("-- Relationship orders -> ghosts was not exported: one of its tables is not in the diagram."));
     }
 
     @Test
-    void testExportDdl_fallsBackToTheDefaultColumnNameWhenNoForeignKeyMatches() {
-        // Given - a blank fromColumn forces the heuristic, and no FK column matches the target name
-        ItemDTO unrelatedFk = item("category_ref", "INTEGER");
-        unrelatedFk.setFk(true);
-
-        ItemDTO usersId = item("id", "INTEGER");
-        usersId.setPk(true);
-
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("orders");
-        link.setTo("users");
-        link.setFromColumn("");
+    void testExportDdl_commentsOutALinkWithoutAForeignKeyColumnInsteadOfInventingOne() {
+        // Given - a blank fromColumn forces the heuristic, and no FK column matches either table
+        LinkDataDTO link = link("orders", "users", "");
 
         // When
         String ddl = exportOf(diagram(
-                List.of(node("orders", List.of(unrelatedFk)), node("users", List.of(usersId))),
+                List.of(node("orders", List.of(pk("id"), fk("category_ref"))), node("users", List.of(pk("id")))),
                 List.of(link)));
 
-        // Then
-        assertTrue(ddl.contains("FOREIGN KEY (users_id) REFERENCES users(id)"),
-                "Without a stored or matching FK column the generator falls back to <table>_id");
+        // Then - users_id does not exist, so a statement using it would fail in MySQL
+        assertTrue(ddl.contains("-- Relationship orders -> users was not exported: no foreign key column was found in either table."));
+        assertFalse(ddl.contains("users_id"));
     }
 
     @Test
-    void testExportDdl_fallsBackToIdWhenTheTargetTableHasNoPrimaryKey() {
+    void testExportDdl_commentsOutALinkToATableWithoutAPrimaryKey() {
         // Given
-        ItemDTO fk = item("users_id", "INTEGER");
-        fk.setFk(true);
-
-        LinkDataDTO link = new LinkDataDTO();
-        link.setFrom("orders");
-        link.setTo("users");
-        link.setFromColumn("users_id");
+        LinkDataDTO link = link("orders", "users", "users_id");
 
         // When
         String ddl = exportOf(diagram(
-                List.of(node("orders", List.of(fk)), node("users", List.of(item("name", "VARCHAR")))),
+                List.of(node("orders", List.of(fk("users_id"))), node("users", List.of(item("name", "VARCHAR")))),
                 List.of(link)));
 
         // Then
-        assertTrue(ddl.contains("REFERENCES users(id)"));
+        assertTrue(ddl.contains("-- Relationship orders -> users was not exported: table users has no primary key."));
+        assertFalse(ddl.contains("REFERENCES users(id)"));
+    }
+
+    @Test
+    void testExportDdl_usesTheRecordedColumnEvenWhenItIsNotNamedAfterTheTarget() {
+        // Given
+        LinkDataDTO link = link("orders", "users", "buyer");
+
+        // When
+        String ddl = exportOf(diagram(
+                List.of(node("orders", List.of(pk("id"), item("buyer", "INTEGER"))), node("users", List.of(pk("id")))),
+                List.of(link)));
+
+        // Then
+        assertTrue(ddl.contains("ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (buyer) REFERENCES users(id);"));
+    }
+
+    @Test
+    void testExportDdl_fallsBackToTheNamingHeuristicWhenTheRecordedColumnWasRenamed() {
+        // Given - the link still names the column the editor created, which was renamed afterwards
+        LinkDataDTO link = link("orders", "users", "users_id");
+
+        // When
+        String ddl = exportOf(diagram(
+                List.of(node("orders", List.of(pk("id"), fk("user_id"))), node("users", List.of(pk("id")))),
+                List.of(link)));
+
+        // Then
+        assertTrue(ddl.contains("FOREIGN KEY (user_id) REFERENCES users(id);"));
+    }
+
+    @Test
+    void testExportDdl_putsTheKeyOnTheTargetWhenOnlyTheTargetHoldsTheColumn() {
+        // Given - the first link of a many-to-many relationship, as the editor used to draw it:
+        // from the entity to the intermediary table, which holds the foreign key
+        NodeDataDTO students = node("students", List.of(pk("id")));
+        NodeDataDTO courses = node("courses", List.of(pk("id")));
+        NodeDataDTO studentsCourses = node("students_courses", List.of(fk("students_id"), fk("courses_id")));
+
+        // When
+        String ddl = exportOf(diagram(List.of(students, courses, studentsCourses), List.of(
+                link("students", "students_courses", null),
+                link("students_courses", "courses", null))));
+
+        // Then
+        assertTrue(ddl.contains("ALTER TABLE students_courses ADD CONSTRAINT fk_students_courses_students "
+                + "FOREIGN KEY (students_id) REFERENCES students(id);"));
+        assertTrue(ddl.contains("ALTER TABLE students_courses ADD CONSTRAINT fk_students_courses_courses "
+                + "FOREIGN KEY (courses_id) REFERENCES courses(id);"));
+        assertFalse(ddl.contains("ALTER TABLE students "));
+    }
+
+    @Test
+    void testExportDdl_writesAKeyReachedByTwoLinksOnlyOnce() {
+        // Given - two links that resolve to the same foreign key
+        NodeDataDTO orders = node("orders", List.of(pk("id"), fk("user_id")));
+        NodeDataDTO users = node("users", List.of(pk("id")));
+
+        // When
+        String ddl = exportOf(diagram(List.of(orders, users), List.of(
+                link("orders", "users", "user_id"),
+                link("users", "orders", null))));
+
+        // Then
+        String statement = "ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users(id);";
+        assertEquals(ddl.indexOf(statement), ddl.lastIndexOf(statement));
+    }
+
+    @Test
+    void testExportDdl_skipsTablesWithoutAKeyAndColumnsWithoutAName() {
+        // Given - malformed entries the generator must step over while looking for the key
+        NodeDataDTO unnamedTable = node(null, List.of(pk("id")));
+        ItemDTO unnamedColumn = fk(null);
+        NodeDataDTO orders = node("orders", List.of(pk("id"), unnamedColumn, fk("user_id")));
+        NodeDataDTO users = node("users", List.of(pk("id")));
+
+        // When
+        String ddl = exportOf(diagram(List.of(unnamedTable, orders, users), List.of(link("orders", "users", null))));
+
+        // Then
+        assertTrue(ddl.contains("FOREIGN KEY (user_id) REFERENCES users(id);"));
     }
 
     // ------------------------------------------------------------------
@@ -465,42 +574,149 @@ class DdlServiceCoverageTest {
                     FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
                 );
                 """;
-        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
-        request.setProjectId(PROJECT_ID);
-        request.setDdlContent(ddl);
 
         // When
-        ddlService.importDdl(request);
+        importScript(ddl);
 
         // Then
-        ArgumentCaptor<String> linkJson = ArgumentCaptor.forClass(String.class);
-        verify(diagramService).saveOrUpdateDiagram(eqProjectId(), anyString(), linkJson.capture());
-        assertEquals("[]", linkJson.getValue(),
+        assertTrue(importedLinks().isEmpty(),
                 "A relationship can only be drawn between two tables of the same diagram");
     }
 
     // ------------------------------------------------------------------
-    // Import - serialisation failure
+    // Import - ALTER TABLE foreign keys, ids and collaboration
     // ------------------------------------------------------------------
 
     @Test
-    void testImportDdl_wrapsSerialisationFailures() throws Exception {
-        // Given
-        ObjectMapper failingMapper = org.mockito.Mockito.mock(ObjectMapper.class);
-        when(failingMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("boom") { });
-        DdlService serviceWithFailingMapper = new DdlService(diagramService, failingMapper);
+    void testImportDdl_readsForeignKeysDeclaredWithAlterTable() {
+        // Given - the layout the export writes: tables first, keys afterwards
+        String ddl = """
+                CREATE TABLE users (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    PRIMARY KEY (id)
+                );
 
-        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
-        request.setProjectId(PROJECT_ID);
-        request.setDdlContent("CREATE TABLE users (id INT PRIMARY KEY);");
+                CREATE TABLE orders (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    buyer INT NOT NULL,
+                    PRIMARY KEY (id)
+                );
+
+                ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (buyer) REFERENCES users(id);
+                """;
 
         // When
-        RuntimeException exception =
-                assertThrows(RuntimeException.class, () -> serviceWithFailingMapper.importDdl(request));
+        importScript(ddl);
 
         // Then
-        assertEquals("Failed to import DDL", exception.getMessage());
-        verify(diagramService, never()).saveOrUpdateDiagram(anyString(), anyString(), anyString());
+        List<LinkDataDTO> links = importedLinks();
+        assertEquals(1, links.size());
+        assertEquals("orders", links.get(0).getFrom());
+        assertEquals("users", links.get(0).getTo());
+        assertEquals("buyer", links.get(0).getFromColumn());
+        ItemDTO buyer = importedNodes().get(1).getItems().get(1);
+        assertTrue(buyer.getFk(), "A column used by a foreign key is a foreign key whatever its name");
+    }
+
+    @Test
+    void testImportDdl_readsAnAlterTableWithoutAConstraintName() {
+        // Given
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                CREATE TABLE orders (id INT PRIMARY KEY, user_id INT);
+                ALTER TABLE orders ADD FOREIGN KEY (user_id) REFERENCES users(id);
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then
+        assertEquals(1, importedLinks().size());
+    }
+
+    @Test
+    void testImportDdl_ignoresAnAlterTableOnATableTheScriptDoesNotCreate() {
+        // Given
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users(id);
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then
+        assertTrue(importedLinks().isEmpty());
+    }
+
+    @Test
+    void testImportDdl_turnsAKeyDeclaredTwiceIntoOneLink() {
+        // Given - the same key inside the table and again in an ALTER TABLE
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                CREATE TABLE orders (
+                    id INT PRIMARY KEY,
+                    user_id INT,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                );
+                ALTER TABLE orders ADD CONSTRAINT fk_orders_users FOREIGN KEY (user_id) REFERENCES users(id);
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then
+        assertEquals(1, importedLinks().size());
+    }
+
+    @Test
+    void testImportDdl_givesEveryLinkAnId() {
+        // Given
+        String ddl = """
+                CREATE TABLE users (id INT PRIMARY KEY);
+                CREATE TABLE orders (id INT PRIMARY KEY, user_id INT, FOREIGN KEY (user_id) REFERENCES users(id));
+                CREATE TABLE reviews (id INT PRIMARY KEY, user_id INT, FOREIGN KEY (user_id) REFERENCES users(id));
+                """;
+
+        // When
+        importScript(ddl);
+
+        // Then - a link without an id cannot be addressed by a patch, so deleting it would not stick
+        List<String> ids = importedLinks().stream().map(LinkDataDTO::getId).toList();
+        assertEquals(2, ids.size());
+        ids.forEach(id -> assertDoesNotThrow(() -> UUID.fromString(id)));
+        assertEquals(2, ids.stream().distinct().count());
+    }
+
+    @Test
+    void testImportDdl_releasesTheProjectLocksAndAnnouncesEachOne() {
+        // Given
+        EntityLockDTO first = new EntityLockDTO("table-a", "ada@example.com", "ada@example.com", "Ada", null, PROJECT_ID);
+        EntityLockDTO second = new EntityLockDTO("table-b", "bob@example.com", "bob@example.com", "Bob", null, PROJECT_ID);
+        when(collaborationService.clearProjectLocks(PROJECT_ID)).thenReturn(List.of(first, second));
+
+        // When
+        importScript("CREATE TABLE users (id INT PRIMARY KEY);");
+
+        // Then - the diagram is replaced before the locks of its old tables are released
+        InOrder order = inOrder(webSocketService, collaborationService, collaborationNotifier);
+        order.verify(webSocketService).replaceDiagram(eq(PROJECT_ID), any(), any());
+        order.verify(collaborationService).clearProjectLocks(PROJECT_ID);
+        order.verify(collaborationNotifier).lockReleased(first);
+        order.verify(collaborationNotifier).lockReleased(second);
+    }
+
+    @Test
+    void testImportDdl_rejectsAMissingScriptWithoutTouchingTheDiagram() {
+        // Given
+        ImportDdlRequestDTO request = new ImportDdlRequestDTO();
+        request.setProjectId(PROJECT_ID);
+        request.setDdlContent(null);
+
+        // When & Then
+        assertThrows(DdlImportException.class, () -> ddlService.importDdl(request));
+        verify(webSocketService, never()).replaceDiagram(any(), any(), any());
+        verifyNoInteractions(collaborationService, collaborationNotifier);
     }
 
 }

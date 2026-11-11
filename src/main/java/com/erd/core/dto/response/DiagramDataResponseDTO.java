@@ -24,6 +24,9 @@ public class DiagramDataResponseDTO implements Serializable {
     @JsonProperty
     private String projectId;
 
+    @JsonProperty
+    private Long revision;
+
     public DiagramDataResponseDTO() { }
 
     public DiagramDataResponseDTO(List<NodeDataDTO> nodeDataArray, List<LinkDataDTO> linkDataArray) {
@@ -69,5 +72,13 @@ public class DiagramDataResponseDTO implements Serializable {
 
     public void setProjectId(String projectId) {
         this.projectId = projectId;
+    }
+
+    public Long getRevision() {
+        return revision;
+    }
+
+    public void setRevision(Long revision) {
+        this.revision = revision;
     }
 }

@@ -229,9 +229,10 @@ class CollaborationServiceTest {
         collaborationService.lockEntity("table-c", "project-2", OWNER_EMAIL, "Ada");
 
         // When
-        collaborationService.clearProjectLocks(PROJECT_ID);
+        List<EntityLockDTO> released = collaborationService.clearProjectLocks(PROJECT_ID);
 
         // Then
+        assertEquals(List.of("table-a"), released.stream().map(EntityLockDTO::getEntityId).toList());
         assertFalse(collaborationService.isEntityLocked("table-a"));
         assertTrue(collaborationService.isEntityLocked("table-c"));
     }

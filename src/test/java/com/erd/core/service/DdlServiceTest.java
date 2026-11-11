@@ -7,10 +7,11 @@ import com.erd.core.dto.NodeDataDTO;
 import com.erd.core.dto.request.ImportDdlRequestDTO;
 import com.erd.core.dto.response.DiagramDataResponseDTO;
 import com.erd.core.dto.response.ExportDdlResponseDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.erd.core.exception.DdlImportException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +38,13 @@ class DdlServiceTest {
     private DiagramService diagramService;
 
     @Mock
-    private ObjectMapper objectMapper;
+    private WebSocketService webSocketService;
+
+    @Mock
+    private CollaborationService collaborationService;
+
+    @Mock
+    private CollaborationNotifier collaborationNotifier;
 
     @InjectMocks
     private DdlService ddlService;
@@ -130,13 +137,12 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        when(objectMapper.writeValueAsString(any())).thenReturn("mocked-json");
-
         // When
         ddlService.importDdl(requestDto);
 
         // Then
-        verify(diagramService).saveOrUpdateDiagram(eq("test-project"), eq("mocked-json"), eq("mocked-json"));
+        assertEquals(List.of("users", "orders"), importedNodes().stream().map(NodeDataDTO::getKey).toList());
+        assertEquals(1, importedLinks().size());
     }
 
     @Test
@@ -154,14 +160,14 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        when(objectMapper.writeValueAsString(any())).thenReturn("mocked-json");
-
         // When
         ddlService.importDdl(requestDto);
 
         // Then
-        verify(objectMapper, times(2)).writeValueAsString(any());
-        verify(diagramService).saveOrUpdateDiagram(eq("test-project"), any(), any());
+        List<NodeDataDTO> nodes = importedNodes();
+        assertEquals(1, nodes.size());
+        assertEquals(List.of("id", "name", "email"), nodes.get(0).getItems().stream().map(ItemDTO::getName).toList());
+        assertTrue(importedLinks().isEmpty());
     }
 
     @Test
@@ -183,14 +189,14 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        when(objectMapper.writeValueAsString(any())).thenReturn("mocked-json");
-
         // When
         ddlService.importDdl(requestDto);
 
         // Then
-        verify(objectMapper, times(2)).writeValueAsString(any());
-        verify(diagramService).saveOrUpdateDiagram(eq("test-project"), any(), any());
+        List<LinkDataDTO> links = importedLinks();
+        assertEquals(1, links.size());
+        assertEquals("orders", links.get(0).getFrom());
+        assertEquals("users", links.get(0).getTo());
     }
 
     @Test
@@ -205,19 +211,20 @@ class DdlServiceTest {
     }
 
     @Test
-    void testImportDdl_InvalidDdlContent() throws Exception {
+    void testImportDdl_InvalidDdlContent() {
         // Given
         ImportDdlRequestDTO requestDto = new ImportDdlRequestDTO();
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent("INVALID DDL CONTENT");
 
-        when(objectMapper.writeValueAsString(any())).thenReturn("mocked-json");
-
         // When
-        ddlService.importDdl(requestDto);
+        DdlImportException exception = assertThrows(DdlImportException.class, () -> ddlService.importDdl(requestDto));
 
-        // Then - should not fail, but should create empty lists
-        verify(diagramService).saveOrUpdateDiagram(eq("test-project"), any(), any());
+        // Then - a script without tables must leave the diagram untouched instead of emptying it
+        assertEquals("No CREATE TABLE statement could be read from the script, so the diagram was not changed.",
+                exception.getMessage());
+        verify(webSocketService, never()).replaceDiagram(any(), any(), any());
+        verify(collaborationService, never()).clearProjectLocks(any());
     }
 
     @Test
@@ -267,16 +274,10 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<NodeDataDTO> nodes = (List<NodeDataDTO>) capturedArgs.get(0);
+        List<NodeDataDTO> nodes = importedNodes();
         ItemDTO idAttr = nodes.get(0).getItems().stream()
                 .filter(i -> "id".equals(i.getName()))
                 .findFirst().orElseThrow();
@@ -299,16 +300,10 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<NodeDataDTO> nodes = (List<NodeDataDTO>) capturedArgs.get(0);
+        List<NodeDataDTO> nodes = importedNodes();
         ItemDTO idAttr = nodes.get(0).getItems().stream()
                 .filter(i -> "id".equals(i.getName()))
                 .findFirst().orElseThrow();
@@ -338,16 +333,10 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<LinkDataDTO> links = (List<LinkDataDTO>) capturedArgs.get(1);
+        List<LinkDataDTO> links = importedLinks();
 
         assertEquals(2, links.size(), "Should have exactly 2 links, not 3 (no duplicates)");
         assertTrue(links.stream().anyMatch(l -> "orders".equals(l.getFrom()) && "users".equals(l.getTo())),
@@ -413,18 +402,11 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<NodeDataDTO> nodes = (List<NodeDataDTO>) capturedArgs.get(0);
-        @SuppressWarnings("unchecked")
-        List<LinkDataDTO> links = (List<LinkDataDTO>) capturedArgs.get(1);
+        List<NodeDataDTO> nodes = importedNodes();
+        List<LinkDataDTO> links = importedLinks();
 
         // All 6 tables parsed
         assertEquals(6, nodes.size());
@@ -466,16 +448,10 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<LinkDataDTO> links = (List<LinkDataDTO>) capturedArgs.get(1);
+        List<LinkDataDTO> links = importedLinks();
 
         assertEquals(1, links.size());
         assertEquals("user_id", links.get(0).getFromColumn(),
@@ -537,16 +513,10 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<NodeDataDTO> nodes = (List<NodeDataDTO>) capturedArgs.get(0);
+        List<NodeDataDTO> nodes = importedNodes();
         List<ItemDTO> items = nodes.get(0).getItems();
 
         ItemDTO priceAttr = items.stream().filter(i -> "price".equals(i.getName()))
@@ -578,18 +548,11 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<NodeDataDTO> nodes = (List<NodeDataDTO>) capturedArgs.get(0);
-        @SuppressWarnings("unchecked")
-        List<LinkDataDTO> links = (List<LinkDataDTO>) capturedArgs.get(1);
+        List<NodeDataDTO> nodes = importedNodes();
+        List<LinkDataDTO> links = importedLinks();
 
         assertEquals(2, nodes.size(), "Both IF NOT EXISTS tables must be parsed");
         assertEquals(1, links.size(), "The relationship must be created even with IF NOT EXISTS");
@@ -608,20 +571,28 @@ class DdlServiceTest {
         requestDto.setProjectId("test-project");
         requestDto.setDdlContent(ddlContent);
 
-        List<Object> capturedArgs = new ArrayList<>();
-        when(objectMapper.writeValueAsString(any())).thenAnswer(inv -> {
-            capturedArgs.add(inv.getArgument(0));
-            return "mocked-json";
-        });
 
         ddlService.importDdl(requestDto);
 
-        @SuppressWarnings("unchecked")
-        List<LinkDataDTO> links = (List<LinkDataDTO>) capturedArgs.get(1);
+        List<LinkDataDTO> links = importedLinks();
 
         assertEquals(1, links.size());
         assertEquals(Integer.valueOf(1), links.getFirst().getToText(),
                 "toText must be Integer 1, not String \"1\"");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<NodeDataDTO> importedNodes() {
+        ArgumentCaptor<List<NodeDataDTO>> nodes = ArgumentCaptor.forClass(List.class);
+        verify(webSocketService).replaceDiagram(eq("test-project"), nodes.capture(), any());
+        return nodes.getValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<LinkDataDTO> importedLinks() {
+        ArgumentCaptor<List<LinkDataDTO>> links = ArgumentCaptor.forClass(List.class);
+        verify(webSocketService).replaceDiagram(eq("test-project"), any(), links.capture());
+        return links.getValue();
     }
 
     private void assertLinkExists(List<LinkDataDTO> links, String from, String to) {

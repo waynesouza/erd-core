@@ -62,8 +62,12 @@ class WebSocketServicePatchTest {
         webSocketService = new WebSocketService(diagramRepository, new DiagramMapper(objectMapper), messagingTemplate);
         lenient().when(diagramRepository.findByProjectId(PROJECT_ID.toString())).thenAnswer(invocation -> {
             Diagram current = stored.get();
-            return Optional.ofNullable(current == null ? null
-                    : new Diagram(current.getNodeData(), current.getLinkData(), current.getProjectId()));
+            if (current == null) {
+                return Optional.empty();
+            }
+            Diagram copy = new Diagram(current.getNodeData(), current.getLinkData(), current.getProjectId());
+            copy.setRevision(current.getRevision());
+            return Optional.of(copy);
         });
         lenient().when(diagramRepository.save(any(Diagram.class))).thenAnswer(invocation -> {
             Diagram saved = invocation.getArgument(0);
@@ -75,6 +79,11 @@ class WebSocketServicePatchTest {
     private void store(List<NodeDataDTO> nodes, List<LinkDataDTO> links) throws Exception {
         stored.set(new Diagram(objectMapper.writeValueAsString(nodes), objectMapper.writeValueAsString(links),
                 PROJECT_ID.toString()));
+    }
+
+    private void store(List<NodeDataDTO> nodes, long revision) throws Exception {
+        store(nodes, List.of());
+        stored.get().setRevision(revision);
     }
 
     private DiagramDataResponseDTO storedState() {
@@ -261,6 +270,77 @@ class WebSocketServicePatchTest {
 
         // Then
         assertEquals(clients, storedState().getNodeDataArray().size());
+    }
+
+
+    // ------------------------------------------------------------------
+    // Revisions: a replaced diagram must not take back patches computed against its old content
+    // ------------------------------------------------------------------
+
+    @Test
+    void testApplyPatch_discardsAPatchComputedAgainstAnEarlierRevision() throws Exception {
+        // Given - the diagram was replaced (revision 2) after the client computed its patch on revision 1
+        UUID imported = UUID.randomUUID();
+        store(List.of(node(imported, "imported")), 2);
+        DiagramPatchRequestDTO stale = patch();
+        stale.setBaseRevision(1L);
+        stale.setUpsertNodes(List.of(node(UUID.randomUUID(), "table_from_before_the_import")));
+
+        // When
+        webSocketService.applyPatch(stale);
+
+        // Then - nothing is saved, and the client is sent the current state so it drops the patch too
+        verify(diagramRepository, never()).save(any(Diagram.class));
+        assertEquals(List.of("imported"), keys(storedState()));
+        ArgumentCaptor<DiagramDataResponseDTO> broadcast = ArgumentCaptor.forClass(DiagramDataResponseDTO.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/diagram/" + PROJECT_ID), broadcast.capture());
+        assertEquals(List.of("imported"), keys(broadcast.getValue()));
+        assertEquals(2L, broadcast.getValue().getRevision());
+    }
+
+    @Test
+    void testApplyPatch_appliesAPatchComputedAgainstTheCurrentRevision() throws Exception {
+        // Given
+        store(List.of(node(UUID.randomUUID(), "imported")), 2);
+        DiagramPatchRequestDTO current = patch();
+        current.setBaseRevision(2L);
+        current.setUpsertNodes(List.of(node(UUID.randomUUID(), "added_after_the_import")));
+
+        // When
+        webSocketService.applyPatch(current);
+
+        // Then - a patch does not change the revision; only a replacement does
+        assertEquals(List.of("imported", "added_after_the_import"), keys(storedState()));
+        assertEquals(2L, stored.get().getRevision());
+    }
+
+    @Test
+    void testReplaceDiagram_replacesTheContentIncrementsTheRevisionAndBroadcastsIt() throws Exception {
+        // Given
+        store(List.of(node(UUID.randomUUID(), "old_table")), 3);
+        LinkDataDTO imported = link("link-1", "orders", "users");
+
+        // When
+        DiagramDataResponseDTO result = webSocketService.replaceDiagram(PROJECT_ID.toString(),
+                List.of(node(UUID.randomUUID(), "users"), node(UUID.randomUUID(), "orders")), List.of(imported));
+
+        // Then
+        assertEquals(List.of("users", "orders"), keys(storedState()));
+        assertEquals("link-1", storedState().getLinkDataArray().getFirst().getId());
+        assertEquals(4L, stored.get().getRevision());
+        assertEquals(4L, result.getRevision());
+        verify(messagingTemplate).convertAndSend("/topic/diagram/" + PROJECT_ID, result);
+    }
+
+    @Test
+    void testReplaceDiagram_createsTheDiagramWhenTheProjectHasNone() {
+        // When
+        webSocketService.replaceDiagram(PROJECT_ID.toString(), List.of(node(UUID.randomUUID(), "users")), List.of());
+
+        // Then
+        assertEquals(PROJECT_ID.toString(), stored.get().getProjectId());
+        assertEquals(List.of("users"), keys(storedState()));
+        assertEquals(1L, stored.get().getRevision());
     }
 
 }
